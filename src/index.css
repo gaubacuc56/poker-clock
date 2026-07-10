@@ -1,0 +1,101 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: dark;
+
+  --bg-primary: 9 9 11;
+  --bg-secondary: 24 24 27;
+  --bg-tertiary: 39 39 42;
+  --text-primary: 244 244 245;
+  --text-secondary: 161 161 170;
+  --text-muted: 113 113 122;
+  --border-color: 39 39 42;
+  --accent-rgb: 59 130 246;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  background-color: rgb(var(--bg-primary));
+  color: rgb(var(--text-primary));
+}
+
+#root {
+  min-height: 100svh;
+}
+
+/* Native number spinners eat too much width on the compact mobile blind/payout editors. */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+@layer components {
+  .btn-primary,
+  .btn-secondary,
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-medium transition-all duration-200;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+    --tw-ring-offset-color: rgb(var(--bg-primary));
+  }
+
+  .btn-primary {
+    background-color: rgb(var(--accent-rgb));
+    @apply text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40;
+    --tw-ring-color: rgb(var(--accent-rgb));
+  }
+
+  .btn-secondary {
+    background-color: rgb(var(--bg-tertiary));
+    color: rgb(var(--text-primary));
+    @apply hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40;
+    --tw-ring-color: rgb(var(--bg-tertiary));
+  }
+
+  .btn-ghost {
+    @apply bg-transparent hover:bg-zinc-800/50 disabled:cursor-not-allowed disabled:opacity-40;
+    color: rgb(var(--text-secondary));
+  }
+  .btn-ghost:hover {
+    color: rgb(var(--text-primary));
+  }
+
+  .card {
+    background-color: rgb(var(--bg-secondary) / 0.5);
+    border: 1px solid rgb(var(--border-color));
+    @apply rounded-2xl backdrop-blur-sm;
+  }
+
+  .input {
+    @apply w-full rounded-lg px-4 py-2.5;
+    background-color: rgb(var(--bg-secondary));
+    border: 1px solid rgb(var(--border-color));
+    color: rgb(var(--text-primary));
+    @apply transition-colors duration-200 placeholder:text-zinc-500 focus:outline-none focus:ring-1;
+    --tw-ring-color: rgb(var(--accent-rgb));
+  }
+  .input:focus {
+    border-color: rgb(var(--accent-rgb));
+  }
+
+  .timer-display {
+    font-variant-numeric: tabular-nums;
+    @apply font-mono tracking-tight;
+  }
+
+  .text-themed-primary { color: rgb(var(--text-primary)); }
+  .text-themed-secondary { color: rgb(var(--text-secondary)); }
+  .text-themed-muted { color: rgb(var(--text-muted)); }
+  .bg-themed-primary { background-color: rgb(var(--bg-primary)); }
+  .bg-themed-secondary { background-color: rgb(var(--bg-secondary)); }
+  .bg-themed-tertiary { background-color: rgb(var(--bg-tertiary)); }
+  .border-themed { border-color: rgb(var(--border-color)); }
+
+  .text-accent { color: rgb(var(--accent-rgb)); }
+  .bg-accent { background-color: rgb(var(--accent-rgb)); }
+  .border-accent { border-color: rgb(var(--accent-rgb)); }
+}
