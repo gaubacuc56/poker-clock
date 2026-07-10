@@ -1,12 +1,20 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { useAuthStore, useTournamentStore, useCurrencyStore } from '@composition/container';
-import AuthPage from './pages/AuthPage';
-import DashboardPage from './pages/DashboardPage';
-import SetupWizardPage from './pages/SetupWizardPage';
-import ControlPage from './pages/ControlPage';
-import ProjectorPage from './pages/ProjectorPage';
-import PlayersPage from './pages/PlayersPage';
+import {
+  useAuthStore,
+  useTournamentStore,
+  useCurrencyStore,
+  useBackgroundStore,
+} from '@composition/container';
+import AuthPage from './application/pages/auth';
+import DashboardPage from './application/pages/dashboard';
+import SetupWizardPage from './application/pages/setup-wizard';
+import ControlPage from './application/pages/control';
+import ProjectorPage from './application/pages/projector';
+import PlayersPage from './application/pages/players';
+import SettingsPage from './application/pages/settings';
+import ProfilePage from './application/pages/profile';
+import BackgroundsPage from './application/pages/backgrounds';
 
 function App() {
   return (
@@ -27,6 +35,7 @@ function AuthenticatedApp() {
 
   const loadTournaments = useTournamentStore((state) => state.load);
   const loadCurrencies = useCurrencyStore((state) => state.load);
+  const loadBackgrounds = useBackgroundStore((state) => state.load);
 
   useEffect(() => initAuth(), [initAuth]);
 
@@ -34,7 +43,8 @@ function AuthenticatedApp() {
     if (!session) return;
     loadTournaments();
     loadCurrencies();
-  }, [session, loadTournaments, loadCurrencies]);
+    loadBackgrounds();
+  }, [session, loadTournaments, loadCurrencies, loadBackgrounds]);
 
   if (!authIsLoaded) {
     return (
@@ -51,6 +61,9 @@ function AuthenticatedApp() {
   return (
     <Routes>
       <Route path="/" element={<DashboardPage />} />
+      <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/settings/profile" element={<ProfilePage />} />
+      <Route path="/settings/backgrounds" element={<BackgroundsPage />} />
       <Route path="/setup/new" element={<SetupWizardPage />} />
       <Route path="/setup/:id" element={<SetupWizardPage />} />
       <Route path="/tournament/:id/control" element={<ControlPage />} />

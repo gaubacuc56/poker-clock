@@ -28,4 +28,19 @@ export class SupabaseAuthGateway implements AuthGateway {
   async signOut(): Promise<void> {
     await supabase.auth.signOut();
   }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<string | null> {
+    const { data } = await supabase.auth.getSession();
+    const email = data.session?.user.email;
+    if (!email) return 'Not signed in.';
+
+    const { error: reauthError } = await supabase.auth.signInWithPassword({
+      email,
+      password: currentPassword,
+    });
+    if (reauthError) return 'Current password is incorrect.';
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    return error?.message ?? null;
+  }
 }

@@ -37,7 +37,8 @@ input[type='number'] {
 @layer components {
   .btn-primary,
   .btn-secondary,
-  .btn-ghost {
+  .btn-ghost,
+  .btn-danger {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-medium transition-all duration-200;
     @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
     --tw-ring-offset-color: rgb(var(--bg-primary));
@@ -62,6 +63,11 @@ input[type='number'] {
   }
   .btn-ghost:hover {
     color: rgb(var(--text-primary));
+  }
+
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40;
+    --tw-ring-color: theme('colors.red.600');
   }
 
   .card {

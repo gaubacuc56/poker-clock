@@ -20,7 +20,7 @@
     /* Layer aliases — mirrors vite.config.ts resolve.alias */
     "paths": {
       "@domain/*": ["./src/domain/*"],
-      "@app/*": ["./src/app/*"],
+      "@application/*": ["./src/application/*"],
       "@infrastructure/*": ["./src/infrastructure/*"],
       "@composition/*": ["./src/composition/*"]
     },

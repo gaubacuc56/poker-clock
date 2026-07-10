@@ -50,7 +50,7 @@ export interface TournamentConfig {
   payoutUnit?: PayoutUnit;
   /** Absent on tournaments created before the sound picker shipped — treat as all 'none'. */
   sounds?: SoundSettings;
-  /** Key into config/base.json's `backgrounds` list. Absent/empty = flat background, no image. */
+  /** Object path in the Supabase Storage `media` bucket (e.g. `background/uuid-name.jpg`). Absent/empty = flat background, no image. */
   projectorBackgroundId?: string;
   createdAt: string;
   status: TournamentStatus;

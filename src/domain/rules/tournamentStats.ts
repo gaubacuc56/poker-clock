@@ -10,6 +10,8 @@ export interface TournamentStats {
   totalEntries: number;
   totalStack: number;
   avgStack: number;
+  lateRegLevel: number
+  startingStack: number
 }
 
 export function computeTournamentStats(tournament: TournamentConfig): TournamentStats {
@@ -22,7 +24,8 @@ export function computeTournamentStats(tournament: TournamentConfig): Tournament
   const totalEntries = buyInCount + tournament.rebuyCount;
   const totalStack = calculateTotalChipsInPlay(tournament);
   const avgStack = remainingPlayers > 0 ? totalStack / remainingPlayers : 0;
-
+  const lateRegLevel = tournament.lateRegLevel
+  const startingStack = tournament.startingStack
   return {
     totalRegistered,
     remainingPlayers,
@@ -32,6 +35,8 @@ export function computeTournamentStats(tournament: TournamentConfig): Tournament
     totalEntries,
     totalStack,
     avgStack,
+    lateRegLevel,
+    startingStack
   };
 }
 

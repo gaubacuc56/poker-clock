@@ -1,11 +1,8 @@
 ## Branding config
 
-Two files in `config/` control this deployment's branding on the projector screen:
+`config/winwise.json` controls this deployment's branding on the projector screen: `logo` is a path to the club's logo image (e.g. `/my-logo.png`, placed under `public/`). Leave it `""` to show no logo at all — there is no default/placeholder logo.
 
-- `config/winwise.json` — brand-specific config for this client. `logo` is a path to the club's logo image (e.g. `/my-logo.png`, placed under `public/`). Leave it `""` to show no logo at all — there is no default/placeholder logo.
-- `config/base.json` — generic app config shared by any deployment, not specific to this client. `backgrounds` is the list of bundled background images the Setup wizard's "Projector background" picker offers (`{ id, label, path }`). These are fixed image files shipped with the app under `public/backgrounds/`, never user-uploaded; add a new option by dropping an image in that folder and adding an entry here.
-
-A tournament's chosen background is stored as `projectorBackgroundId` (just the `id`, not the file) — swapping the image file behind an existing `id` in `base.json` updates every tournament using it, with no per-tournament migration needed.
+Projector backgrounds are not part of this config — they're images uploaded to the `background/` folder of the Supabase Storage `media` bucket from the app's Settings page (see `supabase/SETUP.md`). A tournament's chosen background is stored as `projectorBackgroundId`, which holds that object's full in-bucket path (e.g. `background/uuid-name.jpg`).
 
 ---
 

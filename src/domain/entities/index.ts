@@ -4,3 +4,4 @@ export * from './payout';
 export * from './sound';
 export * from './clock';
 export * from './currency';
+export * from './background';

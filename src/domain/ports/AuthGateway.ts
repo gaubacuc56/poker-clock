@@ -9,4 +9,6 @@ export interface AuthGateway {
   onChange(callback: (session: AuthSession | null) => void): () => void;
   signIn(email: string, password: string): Promise<string | null>;
   signOut(): Promise<void>;
+  /** Verifies `currentPassword` before applying `newPassword`. Returns an error message, or null on success. */
+  changePassword(currentPassword: string, newPassword: string): Promise<string | null>;
 }
