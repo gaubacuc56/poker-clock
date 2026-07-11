@@ -16,9 +16,12 @@ export interface TournamentStats {
 
 export function computeTournamentStats(tournament: TournamentConfig): TournamentStats {
   const totalRegistered = tournament.entrantCount;
+  // A rebuy brings an eliminated player back to the table, so it adds to the
+  // current player count without increasing total registered (only a buy-in
+  // raises entrantCount, which lifts both current and total).
   const remainingPlayers = Math.max(
     0,
-    tournament.entrantCount - tournament.eliminatedCount,
+    tournament.entrantCount - tournament.eliminatedCount + tournament.rebuyCount,
   );
   const buyInCount = totalRegistered;
   const totalEntries = buyInCount + tournament.rebuyCount;
