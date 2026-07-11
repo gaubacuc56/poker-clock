@@ -3,7 +3,7 @@ import { formatNumber } from './format';
 
 /** "Level 3" for play levels, or the break's label (default "Break") for breaks. */
 export function formatLevelLabel(level: BlindLevel): string {
-  return level.isBreak ? (level.breakLabel ?? 'Break') : `Level ${level.level}`;
+  return level.isBreak ? ('Break Time') : `Level ${level.level}`;
 }
 
 /** "25 / 50" — small/big blind, spaced. */

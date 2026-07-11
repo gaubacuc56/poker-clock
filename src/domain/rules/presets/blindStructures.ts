@@ -6,15 +6,13 @@ import {
 
 type BlindPair = [smallBlind: number, bigBlind: number];
 
+// Multiples of 100 only — the smallest chip in play is 100 (no 25 or 50 chips).
 const PROGRESSION: BlindPair[] = [
-  [25, 50],
-  [50, 100],
-  [75, 150],
+  [100, 100],
   [100, 200],
-  [100, 200],
-  [150, 300],
+  [200, 300],
   [200, 400],
-  [250, 500],
+  [300, 500],
   [300, 600],
   [400, 800],
   [500, 1000],
@@ -23,6 +21,9 @@ const PROGRESSION: BlindPair[] = [
   [1000, 2000],
   [1500, 3000],
   [2000, 4000],
+  [3000, 6000],
+  [4000, 8000],
+  [5000, 10000],
 ];
 
 const LEVEL_DURATION_SECONDS = DEFAULT_LEVEL_DURATION_SECONDS;
@@ -56,7 +57,7 @@ export function createDefaultBlindLevels(): BlindLevel[] {
         isBigBlindAnte: false,
         durationSeconds: BREAK_DURATION_SECONDS,
         isBreak: true,
-        breakLabel: 'Break',
+        breakLabel: 'Break Time',
       });
     }
   });

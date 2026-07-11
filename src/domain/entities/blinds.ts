@@ -7,6 +7,8 @@ export interface BlindLevel {
   durationSeconds: number;
   isBreak: boolean;
   breakLabel?: string;
+  /** Whether this break includes a chip race (color-up). Only meaningful when `isBreak`. */
+  chipRace?: boolean;
   colorUp?: number[];
 }
 

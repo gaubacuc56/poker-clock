@@ -4,6 +4,7 @@ import { formatNumber } from '@domain/rules/format';
 import { formatLevelLabel } from '@domain/rules/blindFormat';
 import { minutesToSeconds, secondsToMinutes } from '@domain/rules/duration';
 import {
+  BLIND_INCREMENT,
   createBreak,
   createLevelAfter,
   renumberLevels,
@@ -22,17 +23,22 @@ function NumberField({
   label,
   value,
   onChange,
+  min = 0,
+  step,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  min?: number;
+  step?: number;
 }) {
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-themed-muted">{label}</span>
       <input
         type="number"
-        min={0}
+        min={min}
+        step={step}
         inputMode="numeric"
         className="w-full rounded-md bg-themed-tertiary px-3 py-2 text-sm tabular-nums"
         value={value}
@@ -163,33 +169,53 @@ export default function BlindLevelsTable({
 
               {level.isBreak ? (
                 editable ? (
-                  <div className="max-w-[10rem]">
-                    <NumberField
-                      label="Length (min)"
-                      value={secondsToMinutes(level.durationSeconds)}
-                      onChange={(minutes) => updateLevel(index, { durationSeconds: minutesToSeconds(minutes) })}
-                    />
+                  <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+                    <div className="max-w-[10rem]">
+                      <NumberField
+                        label="Length (min)"
+                        value={secondsToMinutes(level.durationSeconds)}
+                        onChange={(minutes) => updateLevel(index, { durationSeconds: minutesToSeconds(minutes) })}
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 py-2 text-sm text-themed-primary">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-accent"
+                        checked={level.chipRace ?? false}
+                        onChange={(e) => updateLevel(index, { chipRace: e.target.checked })}
+                      />
+                      Chip Race
+                    </label>
                   </div>
                 ) : (
-                  <p className="text-sm text-themed-muted">
-                    {secondsToMinutes(level.durationSeconds)} min
-                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                    <span className="text-themed-muted">
+                      {secondsToMinutes(level.durationSeconds)} min
+                    </span>
+                    {level.chipRace && <span className="text-amber-400">Chip Race</span>}
+                  </div>
                 )
               ) : editable ? (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <NumberField
                     label="SB"
                     value={level.smallBlind}
+                    min={BLIND_INCREMENT}
+                    step={BLIND_INCREMENT}
                     onChange={(v) => updateLevel(index, { smallBlind: v })}
                   />
                   <NumberField
                     label="BB"
                     value={level.bigBlind}
+                    min={BLIND_INCREMENT}
+                    step={BLIND_INCREMENT}
                     onChange={(v) => updateLevel(index, { bigBlind: v })}
                   />
                   <NumberField
                     label="Ante"
                     value={level.ante}
+                    min={0}
+                    step={BLIND_INCREMENT}
                     onChange={(v) => updateLevel(index, { ante: v })}
                   />
                   <NumberField

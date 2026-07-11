@@ -359,6 +359,12 @@ export default function ControlPage() {
                       : `Level ${clock.currentLevelIndex + 1} of ${structure.levels.length}`}
                 </div>
 
+                {isBreak && currentLevel.chipRace && (
+                  <div className="mb-3 text-lg font-semibold uppercase tracking-wide sm:mb-4 sm:text-2xl">
+                    Chip Race
+                  </div>
+                )}
+
                 <div
                   className={`timer-display text-6xl font-bold leading-none tracking-tighter sm:text-8xl md:text-9xl lg:text-[9rem] ${
                     isLowTime

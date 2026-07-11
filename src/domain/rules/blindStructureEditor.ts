@@ -1,8 +1,14 @@
 import type { BlindLevel } from '../entities';
 
 /** Default starting blinds and level/break lengths for a freshly added row or preset. */
-export const DEFAULT_SMALL_BLIND = 25;
-export const DEFAULT_BIG_BLIND = 50;
+export const DEFAULT_SMALL_BLIND = 100;
+export const DEFAULT_BIG_BLIND = 100;
+
+/**
+ * Smallest chip denomination in play — every blind/ante value must be a multiple
+ * of this, since there are no 25 or 50 chips. Also the minimum and step for inputs.
+ */
+export const BLIND_INCREMENT = 100;
 export const DEFAULT_LEVEL_DURATION_SECONDS = 20 * 60;
 export const DEFAULT_BREAK_DURATION_SECONDS = 10 * 60;
 
@@ -40,6 +46,7 @@ export function createBreak(): BlindLevel {
     isBigBlindAnte: false,
     durationSeconds: DEFAULT_BREAK_DURATION_SECONDS,
     isBreak: true,
-    breakLabel: 'Break',
+    breakLabel: 'Break Time',
+    chipRace: false,
   };
 }
