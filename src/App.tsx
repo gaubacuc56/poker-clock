@@ -11,16 +11,18 @@ import DashboardPage from './application/pages/dashboard';
 import SetupWizardPage from './application/pages/setup-wizard';
 import ControlPage from './application/pages/control';
 import ProjectorPage from './application/pages/projector';
+import ProjectorEntryPage from './application/pages/projector-entry';
 import PlayersPage from './application/pages/players';
 import SettingsPage from './application/pages/settings';
 import ProfilePage from './application/pages/profile';
 import BackgroundsPage from './application/pages/backgrounds';
+import NotFoundPage from './application/pages/not-found';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public — no auth gate. A TV opens this directly via a short typed code. */}
+        <Route path="/p" element={<ProjectorEntryPage />} />
         <Route path="/p/:code" element={<ProjectorPage />} />
         <Route path="*" element={<AuthenticatedApp />} />
       </Routes>
@@ -68,6 +70,7 @@ function AuthenticatedApp() {
       <Route path="/setup/:id" element={<SetupWizardPage />} />
       <Route path="/tournament/:id/control" element={<ControlPage />} />
       <Route path="/tournament/:id/players" element={<PlayersPage />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

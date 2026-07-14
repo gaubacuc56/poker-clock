@@ -1,9 +1,7 @@
-import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTournamentStore } from '@composition/container';
 import { calculatePrizePoolForTournament } from '@domain/rules/prizePool';
 import { computeTournamentStats } from '@domain/rules/tournamentStats';
-import { validateRebuyCount } from '@domain/rules/tournamentValidation';
 import { formatMoney, formatNumber } from '@domain/rules/format';
 import TournamentSidebar from '../../components/layout/TournamentSidebar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -16,7 +14,6 @@ export default function PlayersPage() {
     id ? state.getById(id) : undefined,
   );
   const saveTournament = useTournamentStore((state) => state.save);
-  const [error, setError] = useState<string | null>(null);
 
   if (!tournament || !id) {
     return (
@@ -30,14 +27,7 @@ export default function PlayersPage() {
   const { remainingPlayers } = computeTournamentStats(tournament);
 
   function update(patch: Partial<TournamentConfig>) {
-    const next = { ...tournament!, ...patch };
-    const validationError = validateRebuyCount(next);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    setError(null);
-    saveTournament(next);
+    saveTournament({ ...tournament!, ...patch });
   }
 
   return (
@@ -67,7 +57,7 @@ export default function PlayersPage() {
             <CounterRow
               label="Eliminated"
               value={tournament.eliminatedCount}
-              min={tournament.rebuyCount}
+              min={0}
               max={tournament.entrantCount}
               onChange={(value) => update({ eliminatedCount: value })}
             />
@@ -76,7 +66,6 @@ export default function PlayersPage() {
                 label="Rebuys"
                 value={tournament.rebuyCount}
                 min={0}
-                max={tournament.eliminatedCount}
                 onChange={(value) => update({ rebuyCount: value })}
               />
             )}
@@ -90,11 +79,8 @@ export default function PlayersPage() {
             )}
           </div>
 
-          {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
-
           <p className="mt-6 text-xs text-themed-muted">
-            Rebuys can't exceed eliminations — a player has to be out before they can
-            rebuy. Rebuys and add-ons are each assumed to cost the buy-in and grant the
+            Rebuys and add-ons are each assumed to cost the buy-in and grant the
             starting stack.
           </p>
         </div>

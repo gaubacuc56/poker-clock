@@ -9,7 +9,7 @@ import {
   useToast,
 } from "@composition/container";
 import { shouldAutoAdvance } from "@domain/rules/blindProgression";
-import { formatLevelLabel } from "@domain/rules/blindFormat";
+import { formatChipRaceLabel, formatLevelLabel } from "@domain/rules/blindFormat";
 import { calculatePayouts } from "@domain/rules/payouts";
 import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
 import {
@@ -183,9 +183,9 @@ export default function ControlPage() {
   } = computeTournamentStats(tournament);
 
   const isBreak = currentLevel?.isBreak ?? false;
-  const isFinalLevel = clock
-    ? clock.currentLevelIndex === structure.levels.length - 1
-    : false;
+  // Breaks are not levels — count and number only play levels.
+  const playLevelCount = structure.levels.filter((l) => !l.isBreak).length;
+  const isFinalLevel = !isBreak && currentLevel?.level === playLevelCount;
   const isLowTime = secondsRemaining <= 60 && secondsRemaining > 0 && !isBreak;
 
   async function handleStart() {
@@ -214,14 +214,21 @@ export default function ControlPage() {
       <div className="flex flex-1 flex-col pb-16 md:pb-0">
         <PageHeader
           right={
-            <button
-              type="button"
-              className="btn-ghost p-2"
-              title="Copy projector link"
-              onClick={handleCopyProjectorLink}
-            >
-              <ProjectorIcon />
-            </button>
+            <div className="flex items-center gap-2">
+              {tournament.joinCode && (
+                <span className="rounded bg-themed-tertiary px-2 py-1 font-mono text-sm font-semibold tracking-widest text-themed-secondary">
+                  {tournament.joinCode}
+                </span>
+              )}
+              <button
+                type="button"
+                className="btn-ghost p-2"
+                title="Copy projector link"
+                onClick={handleCopyProjectorLink}
+              >
+                <ProjectorIcon />
+              </button>
+            </div>
           }
         />
 
@@ -356,12 +363,12 @@ export default function ControlPage() {
                     ? formatLevelLabel(currentLevel)
                     : isFinalLevel
                       ? "Final Level"
-                      : `Level ${clock.currentLevelIndex + 1} of ${structure.levels.length}`}
+                      : `Level ${currentLevel.level} of ${playLevelCount}`}
                 </div>
 
                 {isBreak && currentLevel.chipRace && (
                   <div className="mb-3 text-lg font-semibold uppercase tracking-wide sm:mb-4 sm:text-2xl">
-                    Chip Race
+                    {formatChipRaceLabel(currentLevel)}
                   </div>
                 )}
 

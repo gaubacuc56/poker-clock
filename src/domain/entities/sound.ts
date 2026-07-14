@@ -1,10 +1,15 @@
+/**
+ * A sound is either silence or the basename of an .mp3 in `public/sounds/`.
+ * Playback loads `<BASE_URL>sounds/<id>.mp3` — see `infrastructure/sound/mp3Sound.ts`.
+ */
 export type SoundId =
   | 'none'
-  | 'beep'
-  | 'double-beep'
-  | 'chime'
-  | 'alarm'
-  | 'horn';
+  | 'bell1'
+  | 'bell2'
+  | 'bell3'
+  | 'next_level'
+  | 'celebrate'
+  | 'scary';
 
 export interface SoundSettings {
   nextLevel: SoundId;
@@ -28,9 +33,10 @@ export const DEFAULT_SOUND_SETTINGS: SoundSettings = {
 
 export const SOUND_OPTIONS: { id: SoundId; label: string }[] = [
   { id: 'none', label: 'None' },
-  { id: 'beep', label: 'Beep' },
-  { id: 'double-beep', label: 'Double Beep' },
-  { id: 'chime', label: 'Chime' },
-  { id: 'alarm', label: 'Alarm' },
-  { id: 'horn', label: 'Horn' },
+  { id: 'bell1', label: 'Bell 1' },
+  { id: 'bell2', label: 'Bell 2' },
+  { id: 'bell3', label: 'Bell 3' },
+  { id: 'next_level', label: 'Next Level' },
+  { id: 'celebrate', label: 'Celebrate' },
+  { id: 'scary', label: 'Scary' },
 ];

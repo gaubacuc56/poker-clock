@@ -59,7 +59,14 @@ export default function DashboardPage() {
                   className="flex flex-col gap-3 rounded-lg border border-themed bg-themed-secondary/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <p className="font-medium">{tournament.name}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{tournament.name}</p>
+                      {tournament.joinCode && (
+                        <span className="rounded bg-themed-tertiary px-2 py-0.5 font-mono text-xs font-semibold tracking-widest text-themed-secondary">
+                          {tournament.joinCode}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-themed-muted">
                       {formatNumber(tournament.entrantCount)} entrants · {tournament.status}
                     </p>

@@ -6,6 +6,7 @@ import {
   useBackgroundStore,
 } from '@composition/container';
 import { createDefaultBlindLevels } from '@domain/rules/presets/blindStructures';
+import { normalizeBlindLevels, renumberLevels } from '@domain/rules/blindStructureEditor';
 import { createDefaultPayoutTiers } from '@domain/rules/presets/payoutStructures';
 import { formatNumber } from '@domain/rules/format';
 import { fromCents, toCents } from '@domain/rules/money';
@@ -132,7 +133,9 @@ export default function SetupWizardPage() {
   useEffect(() => {
     if (customLevels.length > 0) return;
     if (existing) {
-      setCustomLevels(existing.blindLevels.map((level) => ({ ...level })));
+      // Renumber on load so structures saved before breaks stopped counting as
+      // levels get corrected numbering as soon as they're opened.
+      setCustomLevels(renumberLevels(existing.blindLevels.map((level) => ({ ...level }))));
     } else {
       setCustomLevels(createDefaultBlindLevels());
     }
@@ -202,7 +205,7 @@ export default function SetupWizardPage() {
       guaranteedPrizePool: draft.guaranteedPrizePool
         ? toCents(Number(draft.guaranteedPrizePool))
         : undefined,
-      blindLevels: customLevels,
+      blindLevels: normalizeBlindLevels(customLevels),
       payoutTiers: customTiers,
       payoutUnit,
       sounds: draft.sounds,

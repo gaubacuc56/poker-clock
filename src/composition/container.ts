@@ -44,9 +44,9 @@ export { useToast } from '../application/hooks/useToast';
 export { useTournamentClock } from '../application/hooks/useTournamentClock';
 
 // Sound playback has no state worth a full port/factory, but still touches a
-// browser API (Web Audio) — re-exported here so pages never import
+// browser API (HTMLAudioElement) — re-exported here so pages never import
 // `infrastructure/*` directly, keeping that boundary absolute.
-export { playSound } from '../infrastructure/sound/webAudioSound';
+export { playSound } from '../infrastructure/sound/mp3Sound';
 
 // Public, unauthenticated lookup for the projector view — resolves a
 // projectorBackgroundId to a URL without needing the (auth-gated) background

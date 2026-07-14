@@ -1,10 +1,11 @@
 import { Fragment } from 'react';
 import type { BlindLevel } from '@domain/entities';
 import { formatNumber } from '@domain/rules/format';
-import { formatLevelLabel } from '@domain/rules/blindFormat';
+import { formatChipRaceLabel, formatLevelLabel } from '@domain/rules/blindFormat';
 import { minutesToSeconds, secondsToMinutes } from '@domain/rules/duration';
 import {
   BLIND_INCREMENT,
+  DEFAULT_BREAK_DURATION_SECONDS,
   createBreak,
   createLevelAfter,
   renumberLevels,
@@ -18,19 +19,27 @@ interface BlindLevelsTableProps {
   activeLevelIndex?: number;
 }
 
-/** One labeled numeric field inside an editable level card. */
+/**
+ * One labeled numeric field inside an editable level card. When `allowEmpty` is
+ * set, a value of 0 renders as an empty field (with an optional placeholder)
+ * rather than a literal "0" — used for optional fields like break length.
+ */
 function NumberField({
   label,
   value,
   onChange,
   min = 0,
   step,
+  allowEmpty = false,
+  placeholder,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   min?: number;
   step?: number;
+  allowEmpty?: boolean;
+  placeholder?: string;
 }) {
   return (
     <label className="block">
@@ -40,21 +49,52 @@ function NumberField({
         min={min}
         step={step}
         inputMode="numeric"
+        placeholder={placeholder}
         className="w-full rounded-md bg-themed-tertiary px-3 py-2 text-sm tabular-nums"
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        value={allowEmpty && value === 0 ? '' : value}
+        onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))}
       />
     </label>
   );
 }
 
-/** Slim insertion point between cards — adds a level or break at this exact position. */
+/** One labeled text field inside an editable level card. */
+function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-themed-muted">{label}</span>
+      <input
+        type="text"
+        className="w-full rounded-md bg-themed-tertiary px-3 py-2 text-sm"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
+
+/**
+ * Slim insertion point between cards — adds a level or break at this exact
+ * position. The break button is omitted when `onAddBreak` is not given (e.g.
+ * below a break, where a back-to-back break makes no sense).
+ */
 function InsertBar({
   onAddLevel,
   onAddBreak,
 }: {
   onAddLevel: () => void;
-  onAddBreak: () => void;
+  onAddBreak?: () => void;
 }) {
   return (
     <div className="group flex items-center gap-2 py-0.5">
@@ -66,13 +106,15 @@ function InsertBar({
       >
         + Level
       </button>
-      <button
-        type="button"
-        className="rounded-md px-2 py-0.5 text-xs font-medium text-themed-muted transition-colors hover:bg-amber-500/15 hover:text-amber-400"
-        onClick={onAddBreak}
-      >
-        + Break
-      </button>
+      {onAddBreak && (
+        <button
+          type="button"
+          className="rounded-md px-2 py-0.5 text-xs font-medium text-themed-muted transition-colors hover:bg-amber-500/15 hover:text-amber-400"
+          onClick={onAddBreak}
+        >
+          + Break
+        </button>
+      )}
       <div className="h-px flex-1 bg-themed opacity-60" />
     </div>
   );
@@ -169,30 +211,54 @@ export default function BlindLevelsTable({
 
               {level.isBreak ? (
                 editable ? (
-                  <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-                    <div className="max-w-[10rem]">
-                      <NumberField
-                        label="Length (min)"
-                        value={secondsToMinutes(level.durationSeconds)}
-                        onChange={(minutes) => updateLevel(index, { durationSeconds: minutesToSeconds(minutes) })}
-                      />
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+                      <div className="max-w-[10rem]">
+                        <NumberField
+                          label="Length (min)"
+                          value={secondsToMinutes(level.durationSeconds)}
+                          allowEmpty
+                          placeholder={String(secondsToMinutes(DEFAULT_BREAK_DURATION_SECONDS))}
+                          onChange={(minutes) => updateLevel(index, { durationSeconds: minutesToSeconds(minutes) })}
+                        />
+                      </div>
+                      <div className="min-w-[10rem] flex-1">
+                        <TextField
+                          label="Break title"
+                          value={level.breakLabel ?? ''}
+                          placeholder="e.g. 1st"
+                          onChange={(v) => updateLevel(index, { breakLabel: v })}
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 py-2 text-sm text-themed-primary">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-accent"
+                          checked={level.chipRace ?? false}
+                          onChange={(e) => updateLevel(index, { chipRace: e.target.checked })}
+                        />
+                        Chip Race
+                      </label>
                     </div>
-                    <label className="flex items-center gap-2 py-2 text-sm text-themed-primary">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-accent"
-                        checked={level.chipRace ?? false}
-                        onChange={(e) => updateLevel(index, { chipRace: e.target.checked })}
-                      />
-                      Chip Race
-                    </label>
+                    {level.chipRace && (
+                      <div className="max-w-[14rem]">
+                        <TextField
+                          label="Chip race title"
+                          value={level.chipRaceLabel ?? ''}
+                          placeholder="e.g. 1st"
+                          onChange={(v) => updateLevel(index, { chipRaceLabel: v })}
+                        />
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                     <span className="text-themed-muted">
                       {secondsToMinutes(level.durationSeconds)} min
                     </span>
-                    {level.chipRace && <span className="text-amber-400">Chip Race</span>}
+                    {level.chipRace && (
+                      <span className="text-amber-400">{formatChipRaceLabel(level)}</span>
+                    )}
                   </div>
                 )
               ) : editable ? (
@@ -248,7 +314,9 @@ export default function BlindLevelsTable({
             {editable && (
               <InsertBar
                 onAddLevel={() => insertAt(index + 1, createLevelAfter(level))}
-                onAddBreak={() => insertAt(index + 1, createBreak())}
+                onAddBreak={
+                  level.isBreak ? undefined : () => insertAt(index + 1, createBreak())
+                }
               />
             )}
           </Fragment>

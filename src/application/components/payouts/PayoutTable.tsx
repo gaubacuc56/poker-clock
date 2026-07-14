@@ -7,7 +7,7 @@ interface PayoutTableProps {
 
 export default function PayoutTable({ results }: PayoutTableProps) {
   return (
-    <table className="w-full text-left" style={{ fontSize: 'clamp(0.8rem, 1.3vw, 1.6rem)' }}>
+    <table className="w-full text-left" style={{ fontSize: 'clamp(0.8rem, 1.55vw, 2.5rem)' }}>
       <thead className="text-white">
         <tr>
           <th className="px-3 py-1.5 text-center">Place</th>
@@ -18,7 +18,7 @@ export default function PayoutTable({ results }: PayoutTableProps) {
         {results.map((result) => (
           <tr key={result.position} className="border-t border-slate-800">
             <td className="px-3 py-1.5 text-center">{result.position}</td>
-            <td className="px-3 py-1.5 text-center font-bold">{formatMoney(result.amount)}</td>
+            <td className="px-3 py-1.5 text-center font-bold" >{formatMoney(result.amount)}</td>
           </tr>
         ))}
       </tbody>

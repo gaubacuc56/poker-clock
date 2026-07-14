@@ -49,15 +49,18 @@ export function createDefaultBlindLevels(): BlindLevel[] {
 
     const isLastPair = index === PROGRESSION.length - 1;
     if (!isLastPair && (index + 1) % BREAK_EVERY_LEVELS === 0) {
+      // Breaks are not counted as levels, so they don't advance `levelNumber`.
       levels.push({
-        level: levelNumber++,
+        level: 0,
         smallBlind: 0,
         bigBlind: 0,
         ante: 0,
         isBigBlindAnte: false,
         durationSeconds: BREAK_DURATION_SECONDS,
         isBreak: true,
-        breakLabel: 'Break Time',
+        breakLabel: '',
+        chipRace: false,
+        chipRaceLabel: '',
       });
     }
   });

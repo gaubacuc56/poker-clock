@@ -1,27 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateRebuyAddOnPrices, validateRebuyCount } from './tournamentValidation';
-
-describe('validateRebuyCount', () => {
-  it('allows rebuyCount equal to eliminatedCount', () => {
-    expect(validateRebuyCount({ rebuyCount: 2, eliminatedCount: 2 })).toBeNull();
-  });
-
-  it('allows rebuyCount below eliminatedCount', () => {
-    expect(validateRebuyCount({ rebuyCount: 1, eliminatedCount: 3 })).toBeNull();
-  });
-
-  it('rejects rebuyCount above eliminatedCount', () => {
-    expect(validateRebuyCount({ rebuyCount: 2, eliminatedCount: 1 })).toMatch(
-      /cannot exceed eliminations/,
-    );
-  });
-
-  it('rejects rebuyCount above eliminatedCount when eliminatedCount is 0', () => {
-    expect(validateRebuyCount({ rebuyCount: 1, eliminatedCount: 0 })).toMatch(
-      /cannot exceed eliminations/,
-    );
-  });
-});
+import { validateRebuyAddOnPrices } from './tournamentValidation';
 
 describe('validateRebuyAddOnPrices', () => {
   it('allows both disabled regardless of price', () => {

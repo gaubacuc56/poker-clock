@@ -1,9 +1,25 @@
 import type { BlindLevel } from '../entities';
 import { formatNumber } from './format';
 
-/** "Level 3" for play levels, or the break's label (default "Break") for breaks. */
+/**
+ * "Level 3" for play levels, or the break heading for breaks — the hardcoded
+ * "Break Time" text followed by the user's optional title (e.g. "Break Time 1st").
+ */
 export function formatLevelLabel(level: BlindLevel): string {
-  return level.isBreak ? ('Break Time') : `Level ${level.level}`;
+  if (level.isBreak) return formatBreakLabel(level);
+  return `Level ${level.level}`;
+}
+
+/** "Break Time" plus the user's optional break title, e.g. "Break Time 1st". */
+export function formatBreakLabel(level: BlindLevel): string {
+  const title = level.breakLabel?.trim();
+  return title ? `Break Time ${title}` : 'Break Time';
+}
+
+/** "Chip Race" plus the user's optional chip-race title, e.g. "Chip Race 1st". */
+export function formatChipRaceLabel(level: BlindLevel): string {
+  const title = level.chipRaceLabel?.trim();
+  return title ? `Chip Race ${title}` : 'Chip Race';
 }
 
 /** "25 / 50" — small/big blind, spaced. */

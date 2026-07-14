@@ -1,19 +1,3 @@
-import type { TournamentConfig } from '../entities';
-
-/**
- * A player must be eliminated before they're allowed to rebuy, so the rebuy
- * count can never exceed the eliminated count. Returns an error message when
- * violated, or null when the counts are valid.
- */
-export function validateRebuyCount(
-  tournament: Pick<TournamentConfig, 'rebuyCount' | 'eliminatedCount'>,
-): string | null {
-  if (tournament.rebuyCount > tournament.eliminatedCount) {
-    return 'Rebuys cannot exceed eliminations — a player must be eliminated before they can rebuy.';
-  }
-  return null;
-}
-
 /**
  * When rebuys/add-ons are enabled, their price must be entered and positive
  * — there's no sensible default to silently fall back to at setup time

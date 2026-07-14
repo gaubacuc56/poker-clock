@@ -4,7 +4,6 @@ interface StatsPanelProps {
   remainingPlayers: number;
   totalRegistered: number;
   totalEntries: number;
-  buyInCount: number;
   rebuyCount: number;
   totalStack: number;
   avgStack: number;
@@ -16,7 +15,6 @@ export default function StatsPanel({
   remainingPlayers,
   totalRegistered,
   totalEntries,
-  buyInCount,
   rebuyCount,
   totalStack,
   avgStack,
@@ -29,10 +27,7 @@ export default function StatsPanel({
         value={`${formatNumber(remainingPlayers)} / ${formatNumber(totalRegistered)}`}
       />
       <Stat label="Total Entries" value={formatNumber(totalEntries)} />
-      <div className="grid grid-cols-2 gap-3">
-        <Stat label="Re-buy" value={formatNumber(rebuyCount)} />
-        <Stat label="Buy-in" value={formatNumber(buyInCount)} />
-      </div>
+      <Stat label="Re-buy" value={formatNumber(rebuyCount)} />
       <Stat label="Total Stack" value={formatNumber(totalStack)} />
       <Stat label="Avg Stack" value={formatNumber(avgStack, { maximumFractionDigits: 0 })} />
       <Stat
@@ -47,13 +42,13 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="text-center">
       <p
-        className="uppercase tracking-wide text-white"
-        style={{ fontSize: 'clamp(0.65rem, 0.9vw, 1.25rem)' }}
+        className="uppercase tracking-wide text-white font-semibold"
+        style={{ fontSize: 'clamp(0.65rem, 1.35vw, 2rem)' }}
       >
         {label}
       </p>
       <p
-        className="mt-1 font-bold tabular-nums"
+        className="font-bold tabular-nums"
         style={{ fontSize: 'clamp(1.1rem, 2.1vw, 3rem)' }}
       >
         {value}

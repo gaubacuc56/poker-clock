@@ -6,9 +6,16 @@ export interface BlindLevel {
   isBigBlindAnte: boolean;
   durationSeconds: number;
   isBreak: boolean;
+  /**
+   * Free-text title shown next to the hardcoded "Break Time" text (e.g. "1st").
+   * Only meaningful when `isBreak`. Breaks are NOT counted as play levels, so
+   * this never affects level numbering.
+   */
   breakLabel?: string;
   /** Whether this break includes a chip race (color-up). Only meaningful when `isBreak`. */
   chipRace?: boolean;
+  /** Free-text title shown next to the hardcoded "Chip Race" text. Only meaningful when `chipRace`. */
+  chipRaceLabel?: string;
   colorUp?: number[];
 }
 

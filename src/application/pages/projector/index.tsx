@@ -79,7 +79,6 @@ export default function ProjectorPage() {
   const {
     totalRegistered,
     remainingPlayers,
-    buyInCount,
     rebuyCount,
     totalEntries,
     totalStack,
@@ -111,7 +110,7 @@ export default function ProjectorPage() {
           <div className="flex max-w-full flex-col items-center justify-self-center px-4">
             <h1
               className="max-w-full truncate text-center font-bold"
-              style={{ fontSize: "clamp(1.25rem, 2.6vw, 3.25rem)" }}
+              style={{ fontSize: "clamp(1.25rem, 2.8vw, 3.8rem)" }}
             >
               {tournament.name}
             </h1>
@@ -131,15 +130,13 @@ export default function ProjectorPage() {
                 >
                   Stack: {formatNumber(startingStack)}
                 </p>
-              {/* {entryPriceLines.map((line) => line.label).join('/')} :{' '}
-            {entryPriceLines.map((line) => formatAmount(line.amountCents)).join('/')} */}
             </div>
           
           </div>
           <div className="justify-self-end text-center">
             <p
-              className="uppercase tracking-wide"
-              style={{ fontSize: "clamp(0.7rem, 1vw, 1.15rem)" }}
+              className="uppercase tracking-wide font-semibold"
+              style={{ fontSize: "clamp(0.7rem, 1.35vw, 2rem)" }}
             >
               Prize Pool
             </p>
@@ -161,7 +158,6 @@ export default function ProjectorPage() {
               remainingPlayers={remainingPlayers}
               totalRegistered={totalRegistered}
               totalEntries={totalEntries}
-              buyInCount={buyInCount}
               rebuyCount={rebuyCount}
               totalStack={totalStack}
               avgStack={avgStack}
