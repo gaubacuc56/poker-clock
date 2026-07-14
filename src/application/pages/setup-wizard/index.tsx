@@ -129,6 +129,18 @@ export default function SetupWizardPage() {
     );
   }, [existing, currencies]);
 
+  // Same for backgrounds: the initial 'default' placeholder isn't a real id, so
+  // snap a new tournament onto the first available background — that way it's
+  // actually previewed and saved, not left unselected.
+  useEffect(() => {
+    if (existing || backgroundOptions.length === 0) return;
+    setDraft((d) =>
+      backgroundOptions.some((b) => b.id === d.projectorBackgroundId)
+        ? d
+        : { ...d, projectorBackgroundId: backgroundOptions[0].id },
+    );
+  }, [existing, backgroundOptions]);
+
   // Seed the editable blind levels once: from the tournament's existing structure, or a default template.
   useEffect(() => {
     if (customLevels.length > 0) return;

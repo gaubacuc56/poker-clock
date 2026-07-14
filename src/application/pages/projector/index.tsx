@@ -210,16 +210,14 @@ export default function ProjectorPage() {
             />
           </div>
 
-          {payoutResults.length > 0 && (
-            <div
-              style={{ width: "clamp(10rem, 16vw, 19rem)" }}
-              className="shrink-0"
-            >
-              <PayoutTable
-                results={payoutResults}
-              />
-            </div>
-          )}
+          {/* The column keeps its width even with no payouts, so hiding the
+              table doesn't shift the clock off-center. */}
+          <div
+            style={{ width: "clamp(10rem, 16vw, 19rem)" }}
+            className="shrink-0"
+          >
+            {payoutResults.length > 0 && <PayoutTable results={payoutResults} />}
+          </div>
         </div>
       </div>
 
