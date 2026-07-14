@@ -248,17 +248,13 @@ export default function SetupWizardPage() {
                   : 'border-themed'
               }`}
             >
-              {existing ? (
-                <button
-                  type="button"
-                  className="w-full cursor-pointer bg-transparent text-inherit"
-                  onClick={() => setStep(index)}
-                >
-                  {label}
-                </button>
-              ) : (
-                label
-              )}
+              <button
+                type="button"
+                className="w-full cursor-pointer bg-transparent text-inherit"
+                onClick={() => setStep(index)}
+              >
+                {label}
+              </button>
             </li>
           ))}
         </ol>

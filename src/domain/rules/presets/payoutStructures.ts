@@ -1,10 +1,10 @@
 import type { PayoutTier } from '../../entities';
 
-/** Starting point for a new tournament's payout structure — fully editable afterward. */
+/**
+ * Payouts are optional, so a new tournament starts with none — the organizer
+ * adds places only if they want a payout table. An empty structure is valid and
+ * is simply not displayed on the projector/control screens.
+ */
 export function createDefaultPayoutTiers(): PayoutTier[] {
-  return [
-    { position: 1, value: 50 },
-    { position: 2, value: 30 },
-    { position: 3, value: 20 },
-  ];
+  return [];
 }

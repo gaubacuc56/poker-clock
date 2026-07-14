@@ -47,7 +47,7 @@ export { useClockSounds } from '../application/hooks/useClockSounds';
 // Sound playback has no state worth a full port/factory, but still touches a
 // browser API (HTMLAudioElement) — re-exported here so pages never import
 // `infrastructure/*` directly, keeping that boundary absolute.
-export { playSound } from '../infrastructure/sound/mp3Sound';
+export { playSound, primeSounds } from '../infrastructure/sound/mp3Sound';
 
 // Public, unauthenticated lookup for the projector view — resolves a
 // projectorBackgroundId to a URL without needing the (auth-gated) background

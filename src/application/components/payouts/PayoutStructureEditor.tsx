@@ -34,7 +34,6 @@ export default function PayoutStructureEditor({
   }
 
   function removeTier(index: number) {
-    if (tiers.length <= 1) return;
     onChange(
       tiers
         .filter((_, i) => i !== index)
@@ -81,8 +80,7 @@ export default function PayoutStructureEditor({
             <span className="text-sm text-themed-muted">{isAmount ? currency : '%'}</span>
             <button
               type="button"
-              className="text-red-400 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={tiers.length <= 1}
+              className="text-red-400 hover:underline"
               onClick={() => removeTier(index)}
             >
               Remove
@@ -93,11 +91,18 @@ export default function PayoutStructureEditor({
       <button type="button" className="btn-secondary" onClick={addTier}>
         Add place
       </button>
-      <p className={`text-sm ${isValid ? 'text-emerald-400' : 'text-red-400'}`}>
-        Total: {isAmount ? `${formatNumber(fromCents(total))} ${currency}` : `${total}%`}
-        {!isValid &&
-          ` (must equal ${isAmount ? `${formatNumber(fromCents(target))} ${currency}` : '100%'})`}
-      </p>
+      {total === 0 ? (
+        <p className="text-sm text-themed-muted">
+          Payouts are optional — leave empty and no payout table is shown. Add places to
+          configure one.
+        </p>
+      ) : (
+        <p className={`text-sm ${isValid ? 'text-emerald-400' : 'text-red-400'}`}>
+          Total: {isAmount ? `${formatNumber(fromCents(total))} ${currency}` : `${total}%`}
+          {!isValid &&
+            ` (must equal ${isAmount ? `${formatNumber(fromCents(target))} ${currency}` : '100%'})`}
+        </p>
+      )}
     </div>
   );
 }

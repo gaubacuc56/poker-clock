@@ -7,7 +7,12 @@ export interface PayoutTotals {
   isValid: boolean;
 }
 
-/** Payout tiers must sum to exactly 100% (percentage mode) or exactly the guaranteed prize pool, in cents (amount mode). */
+/**
+ * Payouts are optional. When nothing is entered (no tiers, or every tier 0),
+ * the structure is treated as empty — valid, and simply not shown anywhere.
+ * Once any value is entered, tiers must sum to exactly 100% (percentage mode)
+ * or exactly the guaranteed prize pool, in cents (amount mode).
+ */
 export function getPayoutTotals(
   tiers: PayoutTier[],
   unit: PayoutUnit,
@@ -15,7 +20,12 @@ export function getPayoutTotals(
 ): PayoutTotals {
   const total = tiers.reduce((sum, tier) => sum + tier.value, 0);
   const target = unit === 'amount' ? guaranteedPrizePoolCents : 100;
-  return { total, target, isValid: total === target };
+  return { total, target, isValid: total === 0 || total === target };
+}
+
+/** Whether any prize is actually configured — an empty or all-zero structure counts as "no payouts". */
+export function hasPayouts(tiers: PayoutTier[]): boolean {
+  return tiers.some((tier) => tier.value > 0);
 }
 
 export function calculatePrizePool(

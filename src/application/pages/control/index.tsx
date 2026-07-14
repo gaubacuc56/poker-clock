@@ -9,7 +9,7 @@ import {
   useToast,
 } from "@composition/container";
 import { formatChipRaceLabel, formatLevelLabel } from "@domain/rules/blindFormat";
-import { calculatePayouts } from "@domain/rules/payouts";
+import { calculatePayouts, hasPayouts } from "@domain/rules/payouts";
 import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
 import {
   computeTournamentStats,
@@ -133,9 +133,10 @@ export default function ControlPage() {
   }
 
   const prizePool = calculatePrizePoolForTournament(tournament);
-  const payoutResults = payoutStructure
-    ? calculatePayouts(payoutStructure, prizePool, tournament.payoutUnit)
-    : [];
+  const payoutResults =
+    payoutStructure && hasPayouts(tournament.payoutTiers)
+      ? calculatePayouts(payoutStructure, prizePool, tournament.payoutUnit)
+      : [];
   const entryPriceLines = getEntryPriceLines(tournament);
 
   const {

@@ -6,9 +6,10 @@ import {
   useClockSounds,
   useTournamentClock,
   resolveBackgroundPath,
+  primeSounds,
 } from "@composition/container";
 import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
-import { calculatePayouts } from "@domain/rules/payouts";
+import { calculatePayouts, hasPayouts } from "@domain/rules/payouts";
 import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
 import { computeTournamentStats } from "@domain/rules/tournamentStats";
 import { getEntryPriceLines } from "@domain/rules/entryPricing";
@@ -68,6 +69,8 @@ export default function ProjectorPage() {
     activeLevelIndex,
   } = useTournamentClock(tournament);
 
+  const sounds = tournament?.sounds ?? DEFAULT_SOUND_SETTINGS;
+
   // The projector makes sound too, so a TV showing only this screen still plays
   // level/break transitions and time warnings.
   useClockSounds({
@@ -75,8 +78,21 @@ export default function ProjectorPage() {
     currentLevel,
     activeLevelIndex,
     secondsRemaining,
-    sounds: tournament?.sounds ?? DEFAULT_SOUND_SETTINGS,
+    sounds,
   });
+
+  // Browsers block audio until the page receives a user gesture. If the
+  // projector was opened directly (history/bookmark) with no gesture yet, show
+  // a one-tap prompt; if it was reached by clicking through the entry page,
+  // `hasBeenActive` is already true and this never appears.
+  const [needsSoundUnlock, setNeedsSoundUnlock] = useState(
+    () => !navigator.userActivation?.hasBeenActive,
+  );
+
+  function enableSound() {
+    primeSounds(Object.values(sounds));
+    setNeedsSoundUnlock(false);
+  }
 
   if (tournament === undefined) {
     return <Centered>Loading…</Centered>;
@@ -91,9 +107,10 @@ export default function ProjectorPage() {
   }
 
   const prizePool = calculatePrizePoolForTournament(tournament);
-  const payoutResults = payoutStructure
-    ? calculatePayouts(payoutStructure, prizePool, tournament.payoutUnit)
-    : [];
+  const payoutResults =
+    payoutStructure && hasPayouts(tournament.payoutTiers)
+      ? calculatePayouts(payoutStructure, prizePool, tournament.payoutUnit)
+      : [];
   const entryPriceLines = getEntryPriceLines(tournament);
   const {
     totalRegistered,
@@ -205,6 +222,23 @@ export default function ProjectorPage() {
           )}
         </div>
       </div>
+
+      {needsSoundUnlock && (
+        <button
+          type="button"
+          onClick={enableSound}
+          className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-slate-950/80 text-white backdrop-blur-sm"
+          aria-label="Tap to enable sound"
+        >
+          <span style={{ fontSize: "clamp(3rem, 8vw, 6rem)" }}>🔊</span>
+          <span
+            className="font-semibold"
+            style={{ fontSize: "clamp(1.25rem, 3vw, 2.5rem)" }}
+          >
+            Tap to enable sound
+          </span>
+        </button>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculatePayouts, calculatePrizePool, getPayoutTotals } from './payouts';
+import { calculatePayouts, calculatePrizePool, getPayoutTotals, hasPayouts } from './payouts';
 import { createDefaultPayoutTiers } from './presets/payoutStructures';
 import type { PayoutStructure } from '../entities';
 
@@ -50,15 +50,10 @@ describe('calculatePayouts', () => {
     expect(calculatePayouts(structure, 1000)).toEqual([]);
   });
 
-  it('the default payout tiers sum to exactly 100% and distribute the full pool', () => {
-    const tiers = createDefaultPayoutTiers();
-    const totalPercentage = tiers.reduce((sum, tier) => sum + tier.value, 0);
-    expect(totalPercentage).toBe(100);
-
-    const structure: PayoutStructure = { name: 'default', tiers };
-    const results = calculatePayouts(structure, 123_456);
-    const total = results.reduce((sum, r) => sum + r.amount, 0);
-    expect(total).toBe(123_456);
+  it('starts with no default payout tiers — payouts are optional', () => {
+    expect(createDefaultPayoutTiers()).toEqual([]);
+    const structure: PayoutStructure = { name: 'default', tiers: createDefaultPayoutTiers() };
+    expect(calculatePayouts(structure, 123_456)).toEqual([]);
   });
 
   describe('amount unit', () => {
@@ -129,5 +124,25 @@ describe('getPayoutTotals', () => {
       target: 100_000,
       isValid: false,
     });
+  });
+
+  it('treats an empty structure as valid (payouts are optional)', () => {
+    expect(getPayoutTotals([], 'percentage', 0).isValid).toBe(true);
+  });
+
+  it('treats an all-zero structure as valid', () => {
+    const tiers = [{ position: 1, value: 0 }, { position: 2, value: 0 }];
+    expect(getPayoutTotals(tiers, 'percentage', 0).isValid).toBe(true);
+  });
+});
+
+describe('hasPayouts', () => {
+  it('is false for an empty or all-zero structure', () => {
+    expect(hasPayouts([])).toBe(false);
+    expect(hasPayouts([{ position: 1, value: 0 }])).toBe(false);
+  });
+
+  it('is true once any tier has a value', () => {
+    expect(hasPayouts([{ position: 1, value: 100 }])).toBe(true);
   });
 });
