@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   useTournamentStore,
   useClockStore,
   useClockSyncControl,
   useTournamentClock,
-  playSound,
+  useClockSounds,
   useToast,
 } from "@composition/container";
 import { formatChipRaceLabel, formatLevelLabel } from "@domain/rules/blindFormat";
@@ -63,8 +63,6 @@ export default function ControlPage() {
   const toggleMute = useClockStore((state) => state.toggleMute);
 
   const { stop: stopClock } = useClockSyncControl(id);
-  const previousLevelIndexRef = useRef<number | null>(null);
-  const warnedThresholdsRef = useRef<Set<number>>(new Set());
   const [showPayouts, setShowPayouts] = useState(false);
   const { toastMessage, showToast } = useToast();
 
@@ -94,48 +92,14 @@ export default function ControlPage() {
     now,
   } = useTournamentClock(tournament);
 
-  useEffect(() => {
-    if (!clock || !currentLevel || !structure) return;
-    warnedThresholdsRef.current = new Set();
-    if (previousLevelIndexRef.current === null) {
-      previousLevelIndexRef.current = clock.currentLevelIndex;
-      return;
-    }
-    if (previousLevelIndexRef.current !== clock.currentLevelIndex) {
-      const previousLevel = structure.levels[previousLevelIndexRef.current];
-      previousLevelIndexRef.current = clock.currentLevelIndex;
-      if (!isMuted) {
-        if (currentLevel.isBreak) {
-          playSound(sounds.breakStart);
-        } else if (previousLevel?.isBreak) {
-          playSound(sounds.breakEnd);
-        } else {
-          playSound(sounds.nextLevel);
-        }
-      }
-    }
-  }, [clock, currentLevel, structure, isMuted, sounds]);
-
-  useEffect(() => {
-    if (!clock || isMuted) return;
-    const thresholds: [number, keyof typeof sounds][] = [
-      [60, "warning60s"],
-      [30, "warning30s"],
-      [10, "warning10s"],
-      [5, "warning5s"],
-    ];
-    for (const [seconds, key] of thresholds) {
-      if (
-        secondsRemaining <= seconds &&
-        secondsRemaining > seconds - 1 &&
-        !warnedThresholdsRef.current.has(seconds)
-      ) {
-        warnedThresholdsRef.current.add(seconds);
-        playSound(sounds[key]);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [Math.ceil(secondsRemaining)]);
+  useClockSounds({
+    structure,
+    currentLevel,
+    activeLevelIndex,
+    secondsRemaining,
+    sounds,
+    muted: isMuted,
+  });
 
   // Persist the time-based rollover: when elapsed time has carried the clock
   // into a later level, write that advance so it syncs to the projector and

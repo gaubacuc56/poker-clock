@@ -3,9 +3,11 @@ import { useParams } from "react-router-dom";
 import {
   findTournamentByJoinCode,
   useClockSyncProjector,
+  useClockSounds,
   useTournamentClock,
   resolveBackgroundPath,
 } from "@composition/container";
+import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
 import { calculatePayouts } from "@domain/rules/payouts";
 import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
 import { computeTournamentStats } from "@domain/rules/tournamentStats";
@@ -56,8 +58,25 @@ export default function ProjectorPage() {
     ? { name: tournament.name, tiers: tournament.payoutTiers }
     : undefined;
 
-  const { clock, currentLevel, nextLevel, secondsRemaining, nextBreakSeconds } =
-    useTournamentClock(tournament);
+  const {
+    structure,
+    clock,
+    currentLevel,
+    nextLevel,
+    secondsRemaining,
+    nextBreakSeconds,
+    activeLevelIndex,
+  } = useTournamentClock(tournament);
+
+  // The projector makes sound too, so a TV showing only this screen still plays
+  // level/break transitions and time warnings.
+  useClockSounds({
+    structure,
+    currentLevel,
+    activeLevelIndex,
+    secondsRemaining,
+    sounds: tournament?.sounds ?? DEFAULT_SOUND_SETTINGS,
+  });
 
   if (tournament === undefined) {
     return <Centered>Loading…</Centered>;

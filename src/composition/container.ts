@@ -42,6 +42,7 @@ export { useClockStore } from '../application/stores/clockStore';
 export { useClockTick } from '../application/hooks/useClockTick';
 export { useToast } from '../application/hooks/useToast';
 export { useTournamentClock } from '../application/hooks/useTournamentClock';
+export { useClockSounds } from '../application/hooks/useClockSounds';
 
 // Sound playback has no state worth a full port/factory, but still touches a
 // browser API (HTMLAudioElement) — re-exported here so pages never import
