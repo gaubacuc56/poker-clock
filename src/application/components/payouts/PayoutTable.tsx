@@ -7,7 +7,7 @@ interface PayoutTableProps {
 
 export default function PayoutTable({ results }: PayoutTableProps) {
   return (
-    <table className="w-full text-left" style={{ fontSize: 'clamp(0.8rem, 2vw, 3.5rem)' }}>
+    <table className="w-full text-left" style={{ fontSize: 'clamp(0.8rem, 1.8vw, 3.5rem)' }}>
       <thead className="text-white">
         <tr>
           <th className="px-3 py-1 text-center">Place</th>
