@@ -73,6 +73,82 @@ export function getLevel(
   return structure.levels[levelIndex];
 }
 
+export interface ActiveLevel {
+  /** The level that is actually current given how much time has elapsed. */
+  index: number;
+  /** Seconds left in that level (floored at 0 on the final level). */
+  secondsRemaining: number;
+}
+
+/** Rolls forward from the clock's stored level through every level whose full
+ * duration has already elapsed. Shared by {@link getActiveLevel} and
+ * {@link advanceClockToActiveLevel}. */
+function rollForward(
+  structure: BlindStructure,
+  clock: ClockState,
+  nowMs: number,
+): { index: number; elapsedInLevelSeconds: number; skippedSeconds: number } {
+  const levels = structure.levels;
+  let index = Math.min(Math.max(clock.currentLevelIndex, 0), levels.length - 1);
+  let elapsed = Math.max(0, getElapsedMsInLevel(clock, nowMs) / 1000);
+  let skippedSeconds = 0;
+
+  while (index < levels.length - 1 && elapsed >= levels[index].durationSeconds) {
+    elapsed -= levels[index].durationSeconds;
+    skippedSeconds += levels[index].durationSeconds;
+    index++;
+  }
+
+  return { index, elapsedInLevelSeconds: elapsed, skippedSeconds };
+}
+
+/**
+ * Resolves which level is genuinely active *now* by rolling forward from the
+ * clock's stored level through any levels whose full duration has already
+ * elapsed. This lets every screen — including the read-only projector — advance
+ * across level boundaries on its own, without waiting for the control screen to
+ * write the next level. Rolling stops at the final level, whose remaining time
+ * just floors at 0. While paused, elapsed time is frozen, so no rollover occurs.
+ */
+export function getActiveLevel(
+  structure: BlindStructure,
+  clock: ClockState,
+  nowMs: number,
+): ActiveLevel {
+  const { index, elapsedInLevelSeconds } = rollForward(structure, clock, nowMs);
+  const secondsRemaining = Math.max(
+    0,
+    structure.levels[index].durationSeconds - elapsedInLevelSeconds,
+  );
+  return { index, secondsRemaining };
+}
+
+/**
+ * Advances the clock to the level that is active now (per {@link getActiveLevel}),
+ * BACKDATING the level start so the elapsed progress within that level is
+ * preserved. Unlike {@link jumpToLevel} — which restarts a level from its full
+ * duration — this keeps the countdown continuous, so persisting a time-based
+ * rollover never makes the clock jump back to the level's initial value (e.g.
+ * when the control screen is reopened after levels passed on the projector).
+ */
+export function advanceClockToActiveLevel(
+  structure: BlindStructure,
+  clock: ClockState,
+  nowMs: number,
+): ClockState {
+  const { index, skippedSeconds } = rollForward(structure, clock, nowMs);
+  return {
+    currentLevelIndex: index,
+    // Shift the start past the skipped levels (and fold in prior paused time),
+    // leaving the active level's remaining time exactly where it stands now.
+    levelStartedAtEpochMs:
+      clock.levelStartedAtEpochMs + clock.pausedAccumulatedMs + skippedSeconds * 1000,
+    pausedAccumulatedMs: 0,
+    isPaused: false,
+    pausedAtEpochMs: null,
+  };
+}
+
 export function getNextLevel(
   structure: BlindStructure,
   currentLevelIndex: number,
@@ -94,20 +170,22 @@ export function isLateRegClosed(
 }
 
 /**
- * Seconds until the next break starts: remaining time in the current level
+ * Seconds until the next break starts: the seconds left in the current level
  * plus the full duration of every level in between. Returns 0 if already on
- * a break, or null if no break remains later in the structure.
+ * a break, or null if no break remains later in the structure. Takes the
+ * active level index and its remaining seconds directly so it stays correct
+ * after time-based rollover (see `getActiveLevel`).
  */
 export function getSecondsUntilNextBreak(
   structure: BlindStructure,
-  clock: ClockState,
-  currentLevel: BlindLevel,
-  nowMs: number,
+  currentLevelIndex: number,
+  secondsRemainingInCurrent: number,
 ): number | null {
-  if (currentLevel.isBreak) return 0;
+  const currentLevel = structure.levels[currentLevelIndex];
+  if (!currentLevel || currentLevel.isBreak) return currentLevel?.isBreak ? 0 : null;
 
-  let total = getSecondsRemaining(clock, currentLevel, nowMs);
-  for (let i = clock.currentLevelIndex + 1; i < structure.levels.length; i++) {
+  let total = secondsRemainingInCurrent;
+  for (let i = currentLevelIndex + 1; i < structure.levels.length; i++) {
     const level = structure.levels[i];
     if (level.isBreak) return total;
     total += level.durationSeconds;

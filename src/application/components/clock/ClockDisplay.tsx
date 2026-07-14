@@ -27,7 +27,7 @@ export default function ClockDisplay({
       {level.isBreak && level.chipRace && (
         <p
           className="font-semibold uppercase tracking-wide"
-          style={{ fontSize: 'clamp(1.25rem, 2.8vw, 3.5rem)' }}
+          style={{ fontSize: 'clamp(1.25rem, 2.8vw, 4.5rem)' }}
         >
           {formatChipRaceLabel(level)}
         </p>

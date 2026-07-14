@@ -36,9 +36,14 @@ export function formatClock(totalSeconds: number): string {
     .padStart(2, "0")}`;
 }
 
-/** Always have 00:00:00 format */
+/**
+ * Always have 00:00:00 format. Uses ceil (like `formatClock`) so this
+ * countdown ticks in lockstep with the level clock — they share the same
+ * fractional second, and rounding them differently makes the two displays
+ * appear to change ~0.5s apart.
+ */
 export function formatDurationHMS(totalSeconds: number): string {
-  const seconds = Math.max(0, Math.round(totalSeconds));
+  const seconds = Math.max(0, Math.ceil(totalSeconds));
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const remainingSeconds = seconds % 60;

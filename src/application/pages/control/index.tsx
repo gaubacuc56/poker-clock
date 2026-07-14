@@ -8,7 +8,6 @@ import {
   playSound,
   useToast,
 } from "@composition/container";
-import { shouldAutoAdvance } from "@domain/rules/blindProgression";
 import { formatChipRaceLabel, formatLevelLabel } from "@domain/rules/blindFormat";
 import { calculatePayouts } from "@domain/rules/payouts";
 import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
@@ -58,6 +57,7 @@ export default function ControlPage() {
   const pause = useClockStore((state) => state.pause);
   const resume = useClockStore((state) => state.resume);
   const jump = useClockStore((state) => state.jump);
+  const advanceToActiveLevel = useClockStore((state) => state.advanceToActiveLevel);
   const adjustTime = useClockStore((state) => state.adjustTime);
   const undo = useClockStore((state) => state.undo);
   const toggleMute = useClockStore((state) => state.toggleMute);
@@ -90,6 +90,7 @@ export default function ControlPage() {
     nextLevel,
     secondsRemaining,
     nextBreakSeconds,
+    activeLevelIndex,
     now,
   } = useTournamentClock(tournament);
 
@@ -136,13 +137,14 @@ export default function ControlPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Math.ceil(secondsRemaining)]);
 
+  // Persist the time-based rollover: when elapsed time has carried the clock
+  // into a later level, write that advance so it syncs to the projector and
+  // triggers the level/break sounds. Progress within the new level is preserved
+  // (not reset to full), so reopening control never rewinds the countdown.
   useEffect(() => {
-    if (!clock || !currentLevel || !structure || !id) return;
-    if (shouldAutoAdvance(clock, currentLevel, now)) {
-      const nextIndex = clock.currentLevelIndex + 1;
-      if (nextIndex < structure.levels.length) {
-        jump(nextIndex, now);
-      }
+    if (!clock || !structure || !id) return;
+    if (!clock.isPaused && activeLevelIndex !== clock.currentLevelIndex) {
+      advanceToActiveLevel(structure, now);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now]);

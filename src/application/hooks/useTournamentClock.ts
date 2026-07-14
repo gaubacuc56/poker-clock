@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import {
+  getActiveLevel,
   getLevel,
   getNextLevel,
-  getSecondsRemaining,
   getSecondsUntilNextBreak,
 } from '@domain/rules/blindProgression';
 import type { BlindLevel, BlindStructure, ClockState, TournamentConfig } from '@domain/entities';
@@ -18,6 +18,12 @@ export interface TournamentClock {
   nextLevel: BlindLevel | undefined;
   secondsRemaining: number;
   nextBreakSeconds: number | null;
+  /**
+   * The level index that is actually active given elapsed time — may be ahead
+   * of `clock.currentLevelIndex` when levels have ended without the control
+   * screen writing the advance yet. `currentLevel`/`nextLevel` reflect this.
+   */
+  activeLevelIndex: number;
   /** The current tick timestamp (ms), shared with the derived values above. */
   now: number;
 }
@@ -43,14 +49,27 @@ export function useTournamentClock(
 
   const isThisTournamentClock = !!tournament && clockTournamentId === tournament.id;
   const clock = isThisTournamentClock ? clockState : null;
-  const currentLevel = structure && clock ? getLevel(structure, clock.currentLevelIndex) : undefined;
-  const nextLevel = structure && clock ? getNextLevel(structure, clock.currentLevelIndex) : undefined;
-  const secondsRemaining =
-    clock && currentLevel ? getSecondsRemaining(clock, currentLevel, now) : 0;
+
+  // Resolve the level from elapsed time rather than the stored index, so every
+  // screen rolls past a finished level on its own (the projector included).
+  const active = structure && clock ? getActiveLevel(structure, clock, now) : undefined;
+  const activeLevelIndex = active?.index ?? clock?.currentLevelIndex ?? 0;
+  const currentLevel = structure && clock ? getLevel(structure, activeLevelIndex) : undefined;
+  const nextLevel = structure && clock ? getNextLevel(structure, activeLevelIndex) : undefined;
+  const secondsRemaining = active?.secondsRemaining ?? 0;
   const nextBreakSeconds =
     structure && clock && currentLevel
-      ? getSecondsUntilNextBreak(structure, clock, currentLevel, now)
+      ? getSecondsUntilNextBreak(structure, activeLevelIndex, secondsRemaining)
       : null;
 
-  return { structure, clock, currentLevel, nextLevel, secondsRemaining, nextBreakSeconds, now };
+  return {
+    structure,
+    clock,
+    currentLevel,
+    nextLevel,
+    secondsRemaining,
+    nextBreakSeconds,
+    activeLevelIndex,
+    now,
+  };
 }

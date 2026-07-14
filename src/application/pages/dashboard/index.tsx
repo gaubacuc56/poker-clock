@@ -6,6 +6,7 @@ import { formatNumber } from '@domain/rules/format';
 import { copyProjectorLink } from '../../shared/projectorLink';
 import Toast from '../../components/Toast';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import TournamentStatusBadge from '../../components/TournamentStatusBadge';
 import { ClockIcon, PlusIcon, ProjectorIcon, SettingsIcon, TrashIcon } from '../../components/icons';
 
 export default function DashboardPage() {
@@ -59,17 +60,18 @@ export default function DashboardPage() {
                   className="flex flex-col gap-3 rounded-lg border border-themed bg-themed-secondary/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 mb-3 justify-between">
                       <p className="font-medium">{tournament.name}</p>
                       {tournament.joinCode && (
-                        <span className="rounded bg-themed-tertiary px-2 py-0.5 font-mono text-xs font-semibold tracking-widest text-themed-secondary">
+                        <div className="flex items-center rounded bg-themed-tertiary px-2 py-0.5 font-mono font-semibold text-themed-secondary">
                           {tournament.joinCode}
-                        </span>
+                        </div>
                       )}
                     </div>
-                    <p className="text-sm text-themed-muted">
-                      {formatNumber(tournament.entrantCount)} entrants · {tournament.status}
-                    </p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-2 text-base text-themed-muted">
+                      <span>{formatNumber(tournament.entrantCount)} entrants</span>
+                      <TournamentStatusBadge status={tournament.status} />
+                    </div>
                   </div>
                   <div className="flex justify-between gap-2">
                     <div className="flex flex-wrap gap-2">

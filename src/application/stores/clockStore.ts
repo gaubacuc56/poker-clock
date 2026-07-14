@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import type { ClockState } from '@domain/entities';
+import type { BlindStructure, ClockState } from '@domain/entities';
 import {
   adjustTime as adjustClockTime,
+  advanceClockToActiveLevel,
   createClockState,
   jumpToLevel,
   pauseClock,
@@ -27,6 +28,12 @@ interface ClockStoreState {
   pause: (nowMs: number) => void;
   resume: (nowMs: number) => void;
   jump: (levelIndex: number, nowMs: number) => void;
+  /**
+   * Persists a time-based rollover: moves to whichever level is active now
+   * while preserving the in-level countdown (unlike `jump`, which restarts the
+   * level). No-op when nothing has rolled over.
+   */
+  advanceToActiveLevel: (structure: BlindStructure, nowMs: number) => void;
   adjustTime: (deltaSeconds: number) => void;
   undo: () => void;
   toggleMute: () => void;
@@ -66,6 +73,13 @@ export const useClockStore = create<ClockStoreState>((set, get) => ({
       clock: jumpToLevel(levelIndex, nowMs),
       history: pushHistory(history, clock),
     });
+  },
+  advanceToActiveLevel: (structure, nowMs) => {
+    const { clock, history } = get();
+    if (!clock) return;
+    const next = advanceClockToActiveLevel(structure, clock, nowMs);
+    if (next.currentLevelIndex === clock.currentLevelIndex) return;
+    set({ clock: next, history: pushHistory(history, clock) });
   },
   adjustTime: (deltaSeconds) => {
     const { clock, history } = get();

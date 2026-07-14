@@ -43,13 +43,13 @@ function Stat({ label, value }: { label: string; value: string | number }) {
     <div className="text-center">
       <p
         className="uppercase tracking-wide text-white font-semibold"
-        style={{ fontSize: 'clamp(0.65rem, 1.35vw, 2rem)' }}
+        style={{ fontSize: 'clamp(0.65rem, 1.35vw, 3.5rem)' }}
       >
         {label}
       </p>
       <p
         className="font-bold tabular-nums"
-        style={{ fontSize: 'clamp(1.1rem, 2.1vw, 3rem)' }}
+        style={{ fontSize: 'clamp(1.1rem, 2.1vw, 4.5rem)' }}
       >
         {value}
       </p>

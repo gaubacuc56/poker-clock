@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   adjustTime,
+  advanceClockToActiveLevel,
   createClockState,
+  getActiveLevel,
   getSecondsRemaining,
   getSecondsUntilNextBreak,
   isLateRegClosed,
@@ -86,16 +88,14 @@ describe('blindProgression', () => {
       { ...LEVEL, level: 3, isBreak: true, durationSeconds: 900 },
     ];
     const structure = makeStructure(levels);
-    const clock = createClockState(0);
-    // 500s left in level 1 (100s elapsed) + all of level 2 (600s)
-    expect(getSecondsUntilNextBreak(structure, clock, levels[0], 100_000)).toBe(1100);
+    // 500s left in level 1 + all of level 2 (600s)
+    expect(getSecondsUntilNextBreak(structure, 0, 500)).toBe(1100);
   });
 
   it('returns 0 when already on a break', () => {
     const levels: BlindLevel[] = [{ ...LEVEL, isBreak: true }];
     const structure = makeStructure(levels);
-    const clock = createClockState(0);
-    expect(getSecondsUntilNextBreak(structure, clock, levels[0], 0)).toBe(0);
+    expect(getSecondsUntilNextBreak(structure, 0, 0)).toBe(0);
   });
 
   it('returns null when no break remains in the structure', () => {
@@ -104,8 +104,75 @@ describe('blindProgression', () => {
       { ...LEVEL, level: 2, durationSeconds: 600 },
     ];
     const structure = makeStructure(levels);
+    expect(getSecondsUntilNextBreak(structure, 0, 600)).toBeNull();
+  });
+
+  it('rolls the active level forward through levels whose time has elapsed', () => {
+    const levels: BlindLevel[] = [
+      { ...LEVEL, level: 1, durationSeconds: 600 },
+      { ...LEVEL, level: 2, durationSeconds: 600 },
+      { ...LEVEL, level: 3, durationSeconds: 600 },
+    ];
+    const structure = makeStructure(levels);
     const clock = createClockState(0);
-    expect(getSecondsUntilNextBreak(structure, clock, levels[0], 0)).toBeNull();
+
+    // 100s in: still on level 0 with 500s left.
+    expect(getActiveLevel(structure, clock, 100_000)).toEqual({
+      index: 0,
+      secondsRemaining: 500,
+    });
+    // 1300s in: two full levels elapsed -> level index 2 with 500s left.
+    expect(getActiveLevel(structure, clock, 1_300_000)).toEqual({
+      index: 2,
+      secondsRemaining: 500,
+    });
+  });
+
+  it('floors the active level at the final level rather than running off the end', () => {
+    const levels: BlindLevel[] = [
+      { ...LEVEL, level: 1, durationSeconds: 600 },
+      { ...LEVEL, level: 2, durationSeconds: 600 },
+    ];
+    const structure = makeStructure(levels);
+    const clock = createClockState(0);
+    // Way past the end: stays on the last level, remaining floored at 0.
+    expect(getActiveLevel(structure, clock, 10_000_000)).toEqual({
+      index: 1,
+      secondsRemaining: 0,
+    });
+  });
+
+  it('advances the clock to the active level while preserving in-level progress', () => {
+    const levels: BlindLevel[] = [
+      { ...LEVEL, level: 1, durationSeconds: 600 },
+      { ...LEVEL, level: 2, durationSeconds: 600 },
+      { ...LEVEL, level: 3, durationSeconds: 600 },
+    ];
+    const structure = makeStructure(levels);
+    const clock = createClockState(0);
+
+    // 1300s in: active level is index 2 with 500s left.
+    const advanced = advanceClockToActiveLevel(structure, clock, 1_300_000);
+    expect(advanced.currentLevelIndex).toBe(2);
+    // The remaining time is preserved — NOT reset to the full 600s.
+    expect(getSecondsRemaining(advanced, levels[2], 1_300_000)).toBe(500);
+    // And it keeps counting down smoothly from there.
+    expect(getSecondsRemaining(advanced, levels[2], 1_400_000)).toBe(400);
+  });
+
+  it('freezes rollover while paused', () => {
+    const levels: BlindLevel[] = [
+      { ...LEVEL, level: 1, durationSeconds: 600 },
+      { ...LEVEL, level: 2, durationSeconds: 600 },
+    ];
+    const structure = makeStructure(levels);
+    let clock = createClockState(0);
+    clock = pauseClock(clock, 300_000); // paused with 300s left on level 0
+    // Even long after, paused time doesn't roll the level forward.
+    expect(getActiveLevel(structure, clock, 5_000_000)).toEqual({
+      index: 0,
+      secondsRemaining: 300,
+    });
   });
 
   it('adjusting time shifts seconds remaining by the given delta', () => {

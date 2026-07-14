@@ -35,7 +35,6 @@ export default function ProjectorEntryPage() {
         onSubmit={handleSubmit}
         className="flex w-full max-w-sm flex-col items-center gap-6"
       >
-        <h1 className="text-center text-3xl font-bold">Projector</h1>
         <p className="text-center text-slate-400">
           Enter the tournament code to open the projector.
         </p>
