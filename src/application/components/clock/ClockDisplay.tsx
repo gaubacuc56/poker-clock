@@ -19,7 +19,7 @@ export default function ClockDisplay({
     <div className="flex flex-col items-center text-center text-white">
       <p
         className="font-bold uppercase tracking-wide"
-        style={{ fontSize: level.isBreak ? 'clamp(1.5rem, 4vw, 5rem)': 'clamp(1.5rem, 3.2vw, 4.5rem)' }}
+        style={{ fontSize: level.isBreak ? 'clamp(1.5rem, 4vw, 5rem)': 'clamp(1.5rem, 3.5vw, 4.5rem)' }}
       >
         {formatLevelLabel(level)}
       </p>
@@ -34,8 +34,11 @@ export default function ClockDisplay({
       )}
 
       <p
-        className="font-mono font-bold leading-none tabular-nums"
-        style={{ fontSize: 'clamp(6rem, 16vw, 18rem)' }}
+        className="font-mono font-black leading-none tabular-nums"
+        style={{
+          fontSize: 'clamp(6rem, 14vw, 18rem)',
+          WebkitTextStroke: '0.02em currentColor',
+        }}
       >
         {isPaused ? 'PAUSED' : formatClock(secondsRemaining)}
       </p>

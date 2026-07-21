@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   useTournamentStore,
@@ -7,6 +7,7 @@ import {
   useTournamentClock,
   useClockSounds,
   useToast,
+  resolveBackgroundPath,
 } from "@composition/container";
 import { formatChipRaceLabel, formatLevelLabel } from "@domain/rules/blindFormat";
 import { calculatePayouts, hasPayouts } from "@domain/rules/payouts";
@@ -28,10 +29,12 @@ import {
   formatAmount,
 } from "@domain/rules/format";
 import { copyProjectorLink } from "../../shared/projectorLink";
+import { captureProjectorImage } from "../../shared/captureProjectorImage";
 import TournamentSidebar from "../../components/layout/TournamentSidebar";
 import PageHeader from "../../components/layout/PageHeader";
 import Toast from "../../components/Toast";
 import {
+  CameraIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   PauseIcon,
@@ -40,6 +43,7 @@ import {
   StopIcon,
 } from "../../components/icons";
 import type { PayoutStructure } from "@domain/entities";
+import ProjectorView from "../../components/projector/ProjectorView";
 import BlindStat from "./sections/BlindStat";
 import PageShell from "./sections/PageShell";
 
@@ -64,6 +68,8 @@ export default function ControlPage() {
 
   const { stop: stopClock } = useClockSyncControl(id);
   const [showPayouts, setShowPayouts] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const captureRef = useRef<HTMLDivElement>(null);
   const { toastMessage, showToast } = useToast();
 
   async function handleCopyProjectorLink() {
@@ -147,7 +153,9 @@ export default function ControlPage() {
     totalEntries,
     totalStack,
     avgStack,
+    startingStack,
   } = computeTournamentStats(tournament);
+  const backgroundPath = resolveBackgroundPath(tournament.projectorBackgroundId);
 
   const isBreak = currentLevel?.isBreak ?? false;
   // Breaks are not levels — count and number only play levels.
@@ -174,6 +182,17 @@ export default function ControlPage() {
     await saveTournament(stopTournament(tournament!));
   }
 
+  async function handleCapture() {
+    const node = captureRef.current;
+    if (!node || isCapturing) return;
+    setIsCapturing(true);
+    try {
+      showToast(await captureProjectorImage(node, tournament!.name));
+    } finally {
+      setIsCapturing(false);
+    }
+  }
+
   return (
     <div className="flex min-h-screen bg-themed-primary text-themed-primary">
       <TournamentSidebar tournamentId={id} />
@@ -194,6 +213,15 @@ export default function ControlPage() {
                 onClick={handleCopyProjectorLink}
               >
                 <ProjectorIcon />
+              </button>
+              <button
+                type="button"
+                className="btn-ghost p-2 disabled:opacity-40"
+                title="Capture projector image"
+                onClick={handleCapture}
+                disabled={!currentLevel || isCapturing}
+              >
+                <CameraIcon />
               </button>
             </div>
           }
@@ -543,6 +571,50 @@ export default function ControlPage() {
           ) : null}
         </main>
       </div>
+
+      {/* Off-screen 16:9 projector layout kept mounted (not display:none) so it
+          has real layout. Sized in vw so the projector's vw-based fonts resolve
+          against the window and stay proportioned; captured at higher scale. */}
+      {currentLevel && (
+        <div
+          aria-hidden
+          style={{
+            position: "fixed",
+            top: 0,
+            left: -100000,
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            ref={captureRef}
+            style={{
+              width: "100vw",
+              height: "56.25vw",
+            }}
+          >
+            <ProjectorView
+              tournamentName={tournament.name}
+              currency={currency}
+              backgroundPath={backgroundPath}
+              entryPriceLines={entryPriceLines}
+              startingStack={startingStack}
+              prizePool={prizePool}
+              payoutResults={payoutResults}
+              currentLevel={currentLevel}
+              nextLevel={nextLevel}
+              secondsRemaining={secondsRemaining}
+              isPaused={clock?.isPaused ?? false}
+              remainingPlayers={remainingPlayers}
+              totalRegistered={totalRegistered}
+              totalEntries={totalEntries}
+              rebuyCount={rebuyCount}
+              totalStack={totalStack}
+              avgStack={avgStack}
+              nextBreakSeconds={nextBreakSeconds}
+            />
+          </div>
+        </div>
+      )}
 
       <Toast message={toastMessage} />
     </div>

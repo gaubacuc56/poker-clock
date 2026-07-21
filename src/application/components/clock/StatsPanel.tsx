@@ -26,8 +26,8 @@ export default function StatsPanel({
         label="Players"
         value={`${formatNumber(remainingPlayers)} / ${formatNumber(totalRegistered)}`}
       />
-      <Stat label="Total Entries" value={formatNumber(totalEntries)} />
       <Stat label="Re-buy" value={formatNumber(rebuyCount)} />
+      <Stat label="Total Entries" value={formatNumber(totalEntries)} />
       <Stat label="Total Stack" value={formatNumber(totalStack)} />
       <Stat label="Avg Stack" value={formatNumber(avgStack, { maximumFractionDigits: 0 })} />
       <Stat
@@ -41,15 +41,15 @@ export default function StatsPanel({
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="text-center">
-      <p
+       <p
         className="uppercase tracking-wide text-white font-semibold"
-        style={{ fontSize: 'clamp(0.65rem, 1.4vw, 3.5rem)' }}
+        style={{ fontSize: 'clamp(0.65rem, 1.8vw, 3.5rem)' }}
       >
         {label}
       </p>
       <p
         className="font-bold tabular-nums"
-        style={{ fontSize: 'clamp(1.1rem, 2.1vw, 4.5rem)' }}
+        style={{ fontSize: 'clamp(1.1rem, 2.5vw, 4.5rem)' }}
       >
         {value}
       </p>
