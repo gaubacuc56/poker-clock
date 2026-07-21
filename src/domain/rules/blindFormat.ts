@@ -1,5 +1,5 @@
 import type { BlindLevel } from '../entities';
-import { formatNumber } from './format';
+import { formatCompactNumber } from './format';
 
 /**
  * "Level 3" for play levels, or the break heading for breaks — the hardcoded
@@ -22,14 +22,17 @@ export function formatChipRaceLabel(level: BlindLevel): string {
   return title ? `Chip Race ${title}` : 'Chip Race';
 }
 
-/** "25 / 50" — small/big blind, spaced. */
+/** "25 / 50" — small/big blind, spaced. Uses compact K/M/B/T notation. */
 export function formatBlinds(level: BlindLevel): string {
-  return `${formatNumber(level.smallBlind)} / ${formatNumber(level.bigBlind)}`;
+  return `${formatCompactNumber(level.smallBlind)} / ${formatCompactNumber(level.bigBlind)}`;
 }
 
 /** "25/50/50" — small/big blind plus ante when present, slash-joined (compact next-level line). */
 export function formatBlindsLine(level: BlindLevel): string {
-  const parts = [formatNumber(level.smallBlind), formatNumber(level.bigBlind)];
-  if (level.ante > 0) parts.push(formatNumber(level.ante));
+  const parts = [
+    formatCompactNumber(level.smallBlind),
+    formatCompactNumber(level.bigBlind),
+  ];
+  if (level.ante > 0) parts.push(formatCompactNumber(level.ante));
   return parts.join('/');
 }

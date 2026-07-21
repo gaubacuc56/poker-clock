@@ -26,6 +26,55 @@ export function formatMoney(cents: number, currency?: CurrencyUnit): string {
   return formatAmount(cents);
 }
 
+/**
+ * Compact chip-count notation for space-constrained displays (the control
+ * screen). The thousands group is replaced by "K" and the millions group by
+ * "M"; any remaining lower digits are kept after the letter with trailing
+ * zeros dropped, so the letter doubles as a decimal-ish separator:
+ *
+ *   99000    -> "99,000"   (< 6 digits: left as an ordinary grouped number)
+ *   100000   -> "100K"
+ *   137500   -> "137K5"    (137,500 = 137.5K)
+ *   137550   -> "137K55"
+ *   100005   -> "100K005"
+ *   1000000  -> "1M"
+ *   5000000  -> "5M"
+ *   1500000  -> "1M5"
+ *   1000000000    -> "1B"     (billion, from 10 digits)
+ *   2500000000    -> "2B5"
+ *   1000000000000 -> "1T"     (trillion, from 13 digits)
+ *
+ * K covers 6-digit values; each larger suffix takes over at its own group:
+ * M at 7 digits (million), B at 10 digits (billion), T at 13 digits (trillion).
+ */
+export function formatCompactNumber(value: number): string {
+  const rounded = Math.round(value);
+  const n = Math.abs(rounded);
+  if (n < 100_000) return formatNumber(rounded);
+
+  const sign = rounded < 0 ? "-" : "";
+  if (n >= 1_000_000_000_000)
+    return sign + splitCompact(n, 1_000_000_000_000, 12, "T");
+  if (n >= 1_000_000_000)
+    return sign + splitCompact(n, 1_000_000_000, 9, "B");
+  if (n >= 1_000_000) return sign + splitCompact(n, 1_000_000, 6, "M");
+  return sign + splitCompact(n, 1_000, 3, "K");
+}
+
+function splitCompact(
+  n: number,
+  unit: number,
+  width: number,
+  suffix: string,
+): string {
+  const whole = Math.floor(n / unit);
+  const fraction = (n % unit)
+    .toString()
+    .padStart(width, "0")
+    .replace(/0+$/, "");
+  return `${whole}${suffix}${fraction}`;
+}
+
 /** Always have 00:00 format */
 export function formatClock(totalSeconds: number): string {
   const seconds = Math.max(0, Math.ceil(totalSeconds));

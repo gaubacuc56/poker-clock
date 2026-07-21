@@ -1,5 +1,5 @@
 import type { BlindLevel } from '@domain/entities';
-import { formatClock, formatNumber } from '@domain/rules/format';
+import { formatClock, formatCompactNumber } from '@domain/rules/format';
 import { formatBlinds, formatBlindsLine, formatChipRaceLabel, formatLevelLabel } from '@domain/rules/blindFormat';
 
 interface ClockDisplayProps {
@@ -59,7 +59,7 @@ export default function ClockDisplay({
                 style={{ fontSize: 'clamp(1.75rem, 3.8vw, 5rem)' }}
               >
                 <span>ANTE :</span>
-                <span>{formatNumber(level.ante)}</span>
+                <span>{formatCompactNumber(level.ante)}</span>
               </div>
             )}
           </div>

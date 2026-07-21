@@ -24,6 +24,7 @@ import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
 import {
   formatMoney,
   formatClock,
+  formatCompactNumber,
   formatDurationHMS,
   formatNumber,
   formatAmount,
@@ -389,14 +390,14 @@ export default function ControlPage() {
                   <div className="mt-6 flex items-center gap-4 sm:mt-8 sm:gap-8 md:gap-10">
                     <BlindStat
                       label="Small Blind"
-                      value={formatNumber(currentLevel.smallBlind)}
+                      value={formatCompactNumber(currentLevel.smallBlind)}
                     />
                     <span className="text-2xl font-light text-themed-muted sm:text-4xl md:text-5xl">
                       /
                     </span>
                     <BlindStat
                       label="Big Blind"
-                      value={formatNumber(currentLevel.bigBlind)}
+                      value={formatCompactNumber(currentLevel.bigBlind)}
                     />
                     <span className="text-2xl font-light text-themed-muted sm:text-4xl md:text-5xl">
                       +
@@ -405,9 +406,9 @@ export default function ControlPage() {
                       label="Ante"
                       value={
                         currentLevel.isBigBlindAnte
-                          ? `${formatNumber(currentLevel.bigBlind)} BBA`
+                          ? `${formatCompactNumber(currentLevel.bigBlind)} BBA`
                           : currentLevel.ante > 0
-                            ? formatNumber(currentLevel.ante)
+                            ? formatCompactNumber(currentLevel.ante)
                             : "–"
                       }
                       valueClassName={
@@ -432,7 +433,7 @@ export default function ControlPage() {
                       <div className="flex items-center justify-center gap-3 sm:gap-4">
                         <BlindStat
                           label="Small Blind"
-                          value={formatNumber(nextLevel.smallBlind)}
+                          value={formatCompactNumber(nextLevel.smallBlind)}
                           small
                         />
                         <span className="text-xl font-light text-themed-muted">
@@ -440,7 +441,7 @@ export default function ControlPage() {
                         </span>
                         <BlindStat
                           label="Big Blind"
-                          value={formatNumber(nextLevel.bigBlind)}
+                          value={formatCompactNumber(nextLevel.bigBlind)}
                           small
                         />
                         <span className="text-xl font-light text-themed-muted">
@@ -450,9 +451,9 @@ export default function ControlPage() {
                           label="Ante"
                           value={
                             nextLevel.isBigBlindAnte
-                              ? `${formatNumber(nextLevel.bigBlind)} BBA`
+                              ? `${formatCompactNumber(nextLevel.bigBlind)} BBA`
                               : nextLevel.ante > 0
-                                ? formatNumber(nextLevel.ante)
+                                ? formatCompactNumber(nextLevel.ante)
                                 : "–"
                           }
                           valueClassName={
