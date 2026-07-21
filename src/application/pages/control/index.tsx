@@ -29,7 +29,6 @@ import {
   formatAmount,
 } from "@domain/rules/format";
 import { copyProjectorLink } from "../../shared/projectorLink";
-import { captureProjectorImage } from "../../shared/captureProjectorImage";
 import TournamentSidebar from "../../components/layout/TournamentSidebar";
 import PageHeader from "../../components/layout/PageHeader";
 import Toast from "../../components/Toast";
@@ -44,6 +43,9 @@ import {
 } from "../../components/icons";
 import type { PayoutStructure } from "@domain/entities";
 import ProjectorView from "../../components/projector/ProjectorView";
+import ProjectorCaptureFrame, {
+  type ProjectorCaptureFrameHandle,
+} from "../../components/projector/ProjectorCaptureFrame";
 import BlindStat from "./sections/BlindStat";
 import PageShell from "./sections/PageShell";
 
@@ -69,7 +71,7 @@ export default function ControlPage() {
   const { stop: stopClock } = useClockSyncControl(id);
   const [showPayouts, setShowPayouts] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
-  const captureRef = useRef<HTMLDivElement>(null);
+  const captureFrameRef = useRef<ProjectorCaptureFrameHandle>(null);
   const { toastMessage, showToast } = useToast();
 
   async function handleCopyProjectorLink() {
@@ -183,11 +185,11 @@ export default function ControlPage() {
   }
 
   async function handleCapture() {
-    const node = captureRef.current;
-    if (!node || isCapturing) return;
+    const frame = captureFrameRef.current;
+    if (!frame || isCapturing) return;
     setIsCapturing(true);
     try {
-      showToast(await captureProjectorImage(node, tournament!.name));
+      showToast(await frame.capture(tournament!.name));
     } finally {
       setIsCapturing(false);
     }
@@ -572,48 +574,31 @@ export default function ControlPage() {
         </main>
       </div>
 
-      {/* Off-screen 16:9 projector layout kept mounted (not display:none) so it
-          has real layout. Sized in vw so the projector's vw-based fonts resolve
-          against the window and stay proportioned; captured at higher scale. */}
+      {/* Hosts the projector layout in a hidden 1920×1080 iframe so the capture
+          is a faithful HD image regardless of the device that triggered it. */}
       {currentLevel && (
-        <div
-          aria-hidden
-          style={{
-            position: "fixed",
-            top: 0,
-            left: -100000,
-            pointerEvents: "none",
-          }}
-        >
-          <div
-            ref={captureRef}
-            style={{
-              width: "100vw",
-              height: "56.25vw",
-            }}
-          >
-            <ProjectorView
-              tournamentName={tournament.name}
-              currency={currency}
-              backgroundPath={backgroundPath}
-              entryPriceLines={entryPriceLines}
-              startingStack={startingStack}
-              prizePool={prizePool}
-              payoutResults={payoutResults}
-              currentLevel={currentLevel}
-              nextLevel={nextLevel}
-              secondsRemaining={secondsRemaining}
-              isPaused={clock?.isPaused ?? false}
-              remainingPlayers={remainingPlayers}
-              totalRegistered={totalRegistered}
-              totalEntries={totalEntries}
-              rebuyCount={rebuyCount}
-              totalStack={totalStack}
-              avgStack={avgStack}
-              nextBreakSeconds={nextBreakSeconds}
-            />
-          </div>
-        </div>
+        <ProjectorCaptureFrame ref={captureFrameRef}>
+          <ProjectorView
+            tournamentName={tournament.name}
+            currency={currency}
+            backgroundPath={backgroundPath}
+            entryPriceLines={entryPriceLines}
+            startingStack={startingStack}
+            prizePool={prizePool}
+            payoutResults={payoutResults}
+            currentLevel={currentLevel}
+            nextLevel={nextLevel}
+            secondsRemaining={secondsRemaining}
+            isPaused={clock?.isPaused ?? false}
+            remainingPlayers={remainingPlayers}
+            totalRegistered={totalRegistered}
+            totalEntries={totalEntries}
+            rebuyCount={rebuyCount}
+            totalStack={totalStack}
+            avgStack={avgStack}
+            nextBreakSeconds={nextBreakSeconds}
+          />
+        </ProjectorCaptureFrame>
       )}
 
       <Toast message={toastMessage} />
