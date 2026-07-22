@@ -29,7 +29,7 @@ function groupResults(results: PayoutResult[]): PayoutRow[] {
 export default function PayoutTable({ results }: PayoutTableProps) {
   const rows = groupResults(results);
   return (
-    <table className="w-full text-left" style={{ fontSize: 'clamp(0.8rem, 1.8vw, 3.5rem)' }}>
+    <table className="w-full text-left" style={{ fontSize: 'clamp(0.8rem, 2.1vw, 3.5rem)' }}>
       <thead className="text-white">
         <tr>
           <th className="px-3 text-center">Place</th>

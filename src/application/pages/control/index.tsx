@@ -10,6 +10,11 @@ import {
   resolveBackgroundPath,
 } from "@composition/container";
 import { formatChipRaceLabel, formatLevelLabel } from "@domain/rules/blindFormat";
+import {
+  getPlayLevelCount,
+  isClockFinished,
+  isFinalPlayLevel,
+} from "@domain/rules/blindProgression";
 import { calculatePayouts, hasPayouts } from "@domain/rules/payouts";
 import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
 import {
@@ -17,6 +22,7 @@ import {
 } from "@domain/rules/tournamentStats";
 import { getEntryPriceLines } from "@domain/rules/entryPricing";
 import {
+  finishTournament,
   startTournament,
   stopTournament,
 } from "@domain/rules/tournamentLifecycle";
@@ -40,6 +46,7 @@ import {
   PauseIcon,
   PlayIcon,
   ProjectorIcon,
+  ResetIcon,
   StopIcon,
 } from "../../components/icons";
 import type { PayoutStructure } from "@domain/entities";
@@ -122,6 +129,20 @@ export default function ControlPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now]);
 
+  // Once the final level's clock reaches zero the run is over — persist the
+  // 'finished' status so it reflects everywhere (dashboard badge included).
+  // The status guard keeps this from re-firing on every subsequent tick.
+  useEffect(() => {
+    if (!tournament || !structure || !currentLevel) return;
+    if (
+      isClockFinished(structure, currentLevel, secondsRemaining) &&
+      tournament.status !== "finished"
+    ) {
+      void saveTournament(finishTournament(tournament));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsRemaining, currentLevel, structure, tournament?.status]);
+
   if (!tournamentsLoaded) {
     return <PageShell>Loading…</PageShell>;
   }
@@ -162,8 +183,14 @@ export default function ControlPage() {
 
   const isBreak = currentLevel?.isBreak ?? false;
   // Breaks are not levels — count and number only play levels.
-  const playLevelCount = structure.levels.filter((l) => !l.isBreak).length;
-  const isFinalLevel = !isBreak && currentLevel?.level === playLevelCount;
+  const playLevelCount = getPlayLevelCount(structure);
+  const isFinalLevel = currentLevel
+    ? isFinalPlayLevel(structure, currentLevel)
+    : false;
+  // The tournament is over once the final level's clock has run out.
+  const isFinished = currentLevel
+    ? isClockFinished(structure, currentLevel, secondsRemaining)
+    : false;
   const isLowTime = secondsRemaining <= 60 && secondsRemaining > 0 && !isBreak;
 
   async function handleStart() {
@@ -174,11 +201,10 @@ export default function ControlPage() {
 
   async function handleStop() {
     if (!id) return;
-    if (
-      !window.confirm(
-        "Stop this tournament? The clock will reset — starting again begins from level 1.",
-      )
-    ) {
+    const message = isFinished
+      ? "Reset this tournament? All counts and the clock will be cleared — starting again begins from level 1."
+      : "Stop this tournament? The clock will reset — starting again begins from level 1.";
+    if (!window.confirm(message)) {
       return;
     }
     await stopClock();
@@ -352,16 +378,18 @@ export default function ControlPage() {
                   className={`mb-3 rounded-full px-4 py-1.5 text-sm font-semibold sm:mb-4 sm:px-6 sm:py-2 sm:text-xl ${
                     isBreak
                       ? "border border-amber-500/30 bg-amber-500/20 text-amber-400"
-                      : isFinalLevel
+                      : isFinished || isFinalLevel
                         ? "border border-accent/30 bg-accent/20 text-accent"
                         : "bg-themed-tertiary text-themed-secondary"
                   }`}
                 >
                   {isBreak
                     ? formatLevelLabel(currentLevel)
-                    : isFinalLevel
-                      ? "Final Level"
-                      : `Level ${currentLevel.level} of ${playLevelCount}`}
+                    : isFinished
+                      ? "Finished"
+                      : isFinalLevel
+                        ? "Final Level"
+                        : `Level ${currentLevel.level} of ${playLevelCount}`}
                 </div>
 
                 {isBreak && currentLevel.chipRace && (
@@ -564,10 +592,18 @@ export default function ControlPage() {
                 <button
                   type="button"
                   onClick={handleStop}
-                  className="mb-2 mt-8 inline-flex items-center gap-2 rounded-full bg-red-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700 sm:mt-10 sm:px-8 sm:py-3.5 sm:text-base"
+                  className={`mb-2 mt-8 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white transition-colors sm:mt-10 sm:px-8 sm:py-3.5 sm:text-base ${
+                    isFinished
+                      ? "bg-accent hover:opacity-90"
+                      : "bg-red-600 hover:bg-red-700"
+                  }`}
                 >
-                  <StopIcon className="h-4 w-4 text-white" />
-                  Stop Tournament
+                  {isFinished ? (
+                    <ResetIcon className="h-4 w-4 text-white" />
+                  ) : (
+                    <StopIcon className="h-4 w-4 text-white" />
+                  )}
+                  {isFinished ? "Reset Tournament" : "Stop Tournament"}
                 </button>
               </div>
             </>
@@ -591,6 +627,7 @@ export default function ControlPage() {
             nextLevel={nextLevel}
             secondsRemaining={secondsRemaining}
             isPaused={clock?.isPaused ?? false}
+            isFinished={isFinished}
             remainingPlayers={remainingPlayers}
             totalRegistered={totalRegistered}
             totalEntries={totalEntries}

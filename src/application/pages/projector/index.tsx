@@ -13,6 +13,7 @@ import { calculatePayouts, hasPayouts } from "@domain/rules/payouts";
 import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
 import { computeTournamentStats } from "@domain/rules/tournamentStats";
 import { getEntryPriceLines } from "@domain/rules/entryPricing";
+import { isTournamentFinished } from "@domain/rules/tournamentLifecycle";
 import ProjectorView from "../../components/projector/ProjectorView";
 import type { PayoutStructure, TournamentConfig } from "@domain/entities";
 import Centered from "./sections/Centered";
@@ -119,6 +120,15 @@ export default function ProjectorPage() {
   } = computeTournamentStats(tournament);
   const backgroundPath = resolveBackgroundPath(tournament.projectorBackgroundId);
 
+  const isFinished = structure
+    ? isTournamentFinished(
+        tournament.status,
+        structure,
+        currentLevel,
+        secondsRemaining,
+      )
+    : false;
+
   return (
     <div className="relative h-screen w-screen overflow-hidden">
       <ProjectorView
@@ -133,6 +143,7 @@ export default function ProjectorPage() {
         nextLevel={nextLevel}
         secondsRemaining={secondsRemaining}
         isPaused={clock.isPaused}
+        isFinished={isFinished}
         remainingPlayers={remainingPlayers}
         totalRegistered={totalRegistered}
         totalEntries={totalEntries}

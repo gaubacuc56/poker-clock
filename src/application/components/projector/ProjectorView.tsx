@@ -22,6 +22,8 @@ export interface ProjectorViewProps {
   nextLevel: BlindLevel | undefined;
   secondsRemaining: number;
   isPaused: boolean;
+  /** The tournament has ended — the clock shows "FINISHED" instead of a countdown. */
+  isFinished?: boolean;
   remainingPlayers: number;
   totalRegistered: number;
   totalEntries: number;
@@ -45,6 +47,7 @@ export default function ProjectorView({
   nextLevel,
   secondsRemaining,
   isPaused,
+  isFinished = false,
   remainingPlayers,
   totalRegistered,
   totalEntries,
@@ -64,7 +67,7 @@ export default function ProjectorView({
 
       <div
         className="relative z-10 flex h-full flex-col"
-        style={{ padding: "clamp(1rem, 2.5vw, 2.75rem)" }}
+        style={{ padding: "clamp(1rem, 2.5vw, 2.75rem)", paddingTop: '20px' }}
       >
         <div
           className="grid shrink-0 items-start gap-4"
@@ -76,8 +79,7 @@ export default function ProjectorView({
           <div className="flex max-w-full flex-col items-center justify-self-center px-4">
             <h1
               className="max-w-full truncate text-center font-bold"
-              style={{ fontSize: "clamp(1.25rem, 2.8vw, 3.8rem)" }}
-            >
+              style={{ fontSize: "clamp(1.25rem, 3.5vw, 4.5rem)" }}            >
               {tournamentName}
             </h1>
             <div className="flex gap-[3rem]">
@@ -85,14 +87,14 @@ export default function ProjectorView({
                 <p
                   key={line.label}
                   className="max-w-full truncate text-center"
-                  style={{ fontSize: "clamp(0.7rem, 2vw, 3rem)" }}
+                  style={{ fontSize: "clamp(0.7rem, 2.7vw, 4rem)" }}
                 >
                   {line.label}: {formatAmount(line.amountCents)}{" "}
                 </p>
               ))}
               <p
                 className="max-w-full truncate text-center"
-                style={{ fontSize: "clamp(0.7rem, 2vw, 3rem)" }}
+                style={{ fontSize: "clamp(0.7rem, 2.7vw, 4rem)" }}
               >
                 Stack: {formatNumber(startingStack)}
               </p>
@@ -133,6 +135,7 @@ export default function ProjectorView({
               nextLevel={nextLevel}
               secondsRemaining={secondsRemaining}
               isPaused={isPaused}
+              isFinished={isFinished}
             />
           </div>
 

@@ -1,5 +1,12 @@
 @import 'tailwindcss';
 
+/* Register the themeable accent as a real color so Tailwind generates its
+   utilities *and* opacity variants (bg-accent/15, border-accent/30, …). The
+   value tracks the runtime --accent-rgb var below, so theming still works. */
+@theme {
+  --color-accent: rgb(var(--accent-rgb));
+}
+
 :root {
   color-scheme: dark;
 
@@ -100,8 +107,4 @@ input[type='number'] {
   .bg-themed-secondary { background-color: rgb(var(--bg-secondary)); }
   .bg-themed-tertiary { background-color: rgb(var(--bg-tertiary)); }
   .border-themed { border-color: rgb(var(--border-color)); }
-
-  .text-accent { color: rgb(var(--accent-rgb)); }
-  .bg-accent { background-color: rgb(var(--accent-rgb)); }
-  .border-accent { border-color: rgb(var(--accent-rgb)); }
 }

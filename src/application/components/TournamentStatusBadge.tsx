@@ -5,8 +5,7 @@ const STATUS_CONFIG: Record<TournamentStatus, { label: string; className: string
   registering: { label: 'Registering', className: 'bg-blue-500/15 text-blue-400' },
   running: { label: 'Running', className: 'bg-green-500/15 text-green-400' },
   paused: { label: 'Paused', className: 'bg-amber-500/15 text-amber-400' },
-  final_table: { label: 'Final Table', className: 'bg-purple-500/15 text-purple-400' },
-  complete: { label: 'Complete', className: 'bg-themed-tertiary text-themed-muted' },
+  finished: { label: 'Finished', className: 'bg-accent/15 text-accent' },
 };
 
 /** Small colored pill summarizing a tournament's lifecycle status. */

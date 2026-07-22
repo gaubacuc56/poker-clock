@@ -7,8 +7,7 @@ export type TournamentStatus =
   | 'registering'
   | 'running'
   | 'paused'
-  | 'final_table'
-  | 'complete';
+  | 'finished';
 
 /** A `currencies.code` value — the allowed set is database-controlled, not a fixed union. */
 export type CurrencyUnit = string;

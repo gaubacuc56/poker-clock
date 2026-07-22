@@ -7,6 +7,8 @@ interface ClockDisplayProps {
   nextLevel?: BlindLevel;
   secondsRemaining: number;
   isPaused: boolean;
+  /** When the tournament has ended, the countdown is replaced with "FINISHED". */
+  isFinished?: boolean;
 }
 
 export default function ClockDisplay({
@@ -14,6 +16,7 @@ export default function ClockDisplay({
   nextLevel,
   secondsRemaining,
   isPaused,
+  isFinished = false,
 }: ClockDisplayProps) {
   return (
     <div className="flex flex-col items-center text-center text-white">
@@ -36,11 +39,15 @@ export default function ClockDisplay({
       <p
         className="font-mono font-black leading-none tabular-nums"
         style={{
-          fontSize: 'clamp(6rem, 14vw, 18rem)',
+          // "FINISHED" is a longer word than the countdown, so give it a
+          // smaller clamp to keep it from overflowing the clock column.
+          fontSize: isFinished
+            ? 'clamp(4rem, 10vw, 13rem)'
+            : 'clamp(6rem, 14vw, 18rem)',
           WebkitTextStroke: '0.02em currentColor',
         }}
       >
-        {isPaused ? 'PAUSED' : formatClock(secondsRemaining)}
+        {isFinished ? 'FINISHED' : isPaused ? 'PAUSED' : formatClock(secondsRemaining)}
       </p>
 
       <div className="mt-4 flex flex-col self-stretch text-center">
@@ -48,7 +55,7 @@ export default function ClockDisplay({
           <div className="flex flex-col gap-1">
             <div
               className="flex items-baseline justify-between font-semibold"
-              style={{ fontSize: 'clamp(1.75rem, 3.8vw, 5rem)' }}
+              style={{ fontSize: 'clamp(1.75rem, 3.6vw, 5rem)' }}
             >
               <span>BLINDS :</span>
               <span>{formatBlinds(level)}</span>
@@ -56,7 +63,7 @@ export default function ClockDisplay({
             {level.ante > 0 && (
               <div
                 className="flex items-baseline justify-between font-semibold"
-                style={{ fontSize: 'clamp(1.75rem, 3.8vw, 5rem)' }}
+                style={{ fontSize: 'clamp(1.75rem, 3.6vw, 5rem)' }}
               >
                 <span>ANTE :</span>
                 <span>{formatCompactNumber(level.ante)}</span>
@@ -66,7 +73,7 @@ export default function ClockDisplay({
         )}
 
         {nextLevel && (
-          <p className="mt-3" style={{ fontSize: 'clamp(2rem, 2.5vw, 5rem)' }}>
+          <p className="mt-3" style={{ fontSize: 'clamp(2rem, 3.4vw, 5rem)' }}>
             Next: {nextLevel.isBreak ? formatLevelLabel(nextLevel) : formatBlindsLine(nextLevel)}
           </p>
         )}

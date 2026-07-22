@@ -156,6 +156,32 @@ export function getNextLevel(
   return structure.levels[currentLevelIndex + 1];
 }
 
+/** How many playable (non-break) levels the structure has. */
+export function getPlayLevelCount(structure: BlindStructure): number {
+  return structure.levels.filter((l) => !l.isBreak).length;
+}
+
+/** True when `level` is the last playable level of the structure. */
+export function isFinalPlayLevel(
+  structure: BlindStructure,
+  level: BlindLevel,
+): boolean {
+  return !level.isBreak && level.level === getPlayLevelCount(structure);
+}
+
+/**
+ * The clock has run out on the final playable level — play is over. This is
+ * the live, clock-derived signal every screen can compute on its own; the
+ * persisted 'finished' status (see `finishTournament`) is written from it.
+ */
+export function isClockFinished(
+  structure: BlindStructure,
+  level: BlindLevel,
+  secondsRemaining: number,
+): boolean {
+  return isFinalPlayLevel(structure, level) && secondsRemaining === 0;
+}
+
 /**
  * lateRegLevel is a 1-indexed BlindLevel.level value: the last level late
  * registration is open through. Comparison uses the level's own `level`
