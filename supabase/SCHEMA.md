@@ -43,7 +43,7 @@ erDiagram
         bigint rebuy_price_cents "nullable, falls back to buy_in_cents"
         bigint add_on_price_cents "nullable, falls back to buy_in_cents"
         jsonb blind_levels "BlindLevel[]"
-        jsonb payout_tiers "PayoutTier[]"
+        jsonb payout_tiers "PayoutTier[] — { position, value, note? }"
         jsonb sounds "SoundSettings"
         timestamptz created_at
         timestamptz updated_at

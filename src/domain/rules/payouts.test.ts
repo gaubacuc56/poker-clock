@@ -145,4 +145,33 @@ describe('hasPayouts', () => {
   it('is true once any tier has a value', () => {
     expect(hasPayouts([{ position: 1, value: 100 }])).toBe(true);
   });
+
+  it('is true for a note-only tier — a written prize is still a prize', () => {
+    expect(hasPayouts([{ position: 1, value: 0, note: '1 ticket happy hour' }])).toBe(true);
+  });
+
+  it('ignores a blank note', () => {
+    expect(hasPayouts([{ position: 1, value: 0, note: '   ' }])).toBe(false);
+  });
+});
+
+describe('calculatePayouts notes', () => {
+  it('carries a tier note through to the result, in both units', () => {
+    const structure = {
+      name: 'Noted',
+      tiers: [{ position: 1, value: 100, note: '1 ticket happy hour' }],
+    };
+    expect(calculatePayouts(structure, 10_000)[0].note).toBe('1 ticket happy hour');
+    expect(calculatePayouts(structure, 10_000, 'amount')[0].note).toBe('1 ticket happy hour');
+  });
+
+  it('leaves note absent when the tier has none or it is blank', () => {
+    const structure = {
+      name: 'Plain',
+      tiers: [{ position: 1, value: 60 }, { position: 2, value: 40, note: '  ' }],
+    };
+    const results = calculatePayouts(structure, 10_000);
+    expect(results[0]).not.toHaveProperty('note');
+    expect(results[1]).not.toHaveProperty('note');
+  });
 });

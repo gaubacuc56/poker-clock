@@ -317,7 +317,14 @@ export default function ControlPage() {
                               {result.percentage}%
                             </span>
                             <span className="truncate font-semibold">
-                              {formatMoney(result.amount, currency)}
+                              {[
+                                result.amount > 0
+                                  ? formatMoney(result.amount, currency)
+                                  : null,
+                                result.note,
+                              ]
+                                .filter(Boolean)
+                                .join(' + ') || formatMoney(result.amount, currency)}
                             </span>
                           </div>
                         ))}

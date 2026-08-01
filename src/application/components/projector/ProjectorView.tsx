@@ -1,5 +1,11 @@
+import type { CSSProperties } from "react";
 import { formatAmount, formatMoney, formatNumber } from "@domain/rules/format";
 import type { BlindLevel, PayoutResult } from "@domain/entities";
+import {
+  PROJECTOR_UNIT,
+  PROJECTOR_UNIT_VAR,
+  pu,
+} from "../../shared/projectorScale";
 import ClockDisplay from "../clock/ClockDisplay";
 import StatsPanel from "../clock/StatsPanel";
 import PayoutTable from "../payouts/PayoutTable";
@@ -9,6 +15,23 @@ interface EntryPriceLine {
   label: string;
   amountCents: number;
 }
+
+// Centre-heading type scale, in projector units. Line heights are pinned so the
+// heading's total height is known without measuring it, and the left column can
+// reserve exactly that much space for the logo.
+const TITLE_SIZE = 4;
+const SUBTITLE_SIZE = 2.6;
+const HEADING_LINE_HEIGHT = 1.2;
+const HEADING_HEIGHT = (TITLE_SIZE + SUBTITLE_SIZE) * HEADING_LINE_HEIGHT;
+
+/** Left column width, in projector units — sized so "TOTAL ENTRIES", the
+ *  longest stat label, fits on one line. */
+const STATS_COLUMN_WIDTH = 15;
+
+/** Payout column bounds, in projector units. The maximum leaves the clock
+ *  column enough room for its widest blinds line. */
+const PAYOUT_MIN_WIDTH = 16;
+const PAYOUT_MAX_WIDTH = 22;
 
 export interface ProjectorViewProps {
   tournamentName: string;
@@ -57,7 +80,17 @@ export default function ProjectorView({
   nextBreakSeconds,
 }: ProjectorViewProps) {
   return (
-    <div className="relative h-full w-full overflow-hidden bg-slate-950 text-white">
+    <div
+      className="relative h-full w-full overflow-hidden bg-slate-950 text-white"
+      // Everything below sizes itself off `--pu`, so the whole layout scales
+      // with this box instead of jumping between fixed breakpoint sizes.
+      style={
+        {
+          containerType: "size",
+          [PROJECTOR_UNIT_VAR]: PROJECTOR_UNIT,
+        } as CSSProperties
+      }
+    >
       {backgroundPath && (
         <div
           className="absolute inset-0 bg-cover bg-center"
@@ -65,59 +98,25 @@ export default function ProjectorView({
         />
       )}
 
+      {/* Three full-height columns: stats on the left, clock in the middle,
+          payouts on the right. Each column owns its own heading. */}
       <div
-        className="relative z-10 flex h-full flex-col"
-        style={{ padding: "clamp(1rem, 2.5vw, 2.75rem)", paddingTop: '20px' }}
+        className="relative z-10 flex h-full items-stretch"
+        style={{ padding: pu(1),  gap: pu(1.5) }}
       >
         <div
-          className="grid shrink-0 items-start gap-4"
-          style={{ gridTemplateColumns: "1fr auto 1fr" }}
+          style={{ width: pu(STATS_COLUMN_WIDTH) }}
+          className="flex shrink-0 flex-col overflow-hidden"
         >
-          <div className="flex justify-start">
+          {/* Always reserves the centre heading's height, so the stats start
+              level with the clock whether or not a club logo is configured. */}
+          <div
+            className="flex shrink-0 items-center justify-end overflow-hidden"
+            style={{ height: pu(HEADING_HEIGHT) }}
+          >
             <ClubLogo />
           </div>
-          <div className="flex max-w-full flex-col items-center justify-self-center px-4">
-            <h1
-              className="max-w-full truncate text-center font-bold"
-              style={{ fontSize: "clamp(1.25rem, 3.5vw, 4.5rem)" }}            >
-              {tournamentName}
-            </h1>
-            <div className="flex gap-[3rem]">
-              {entryPriceLines.map((line) => (
-                <p
-                  key={line.label}
-                  className="max-w-full truncate text-center"
-                  style={{ fontSize: "clamp(0.7rem, 2.7vw, 4rem)" }}
-                >
-                  {line.label}: {formatAmount(line.amountCents)}{" "}
-                </p>
-              ))}
-              <p
-                className="max-w-full truncate text-center"
-                style={{ fontSize: "clamp(0.7rem, 2.7vw, 4rem)" }}
-              >
-                Stack: {formatNumber(startingStack)}
-              </p>
-            </div>
-          </div>
-          <div className="justify-self-end text-center">
-            <p
-              className="uppercase tracking-wide font-semibold"
-              style={{ fontSize: "clamp(0.7rem, 1.35vw, 2rem)" }}
-            >
-              Prize Pool
-            </p>
-            <p
-              className="font-bold tabular-nums"
-              style={{ fontSize: "clamp(1.5rem, 3vw, 3.5rem)" }}
-            >
-              {formatMoney(prizePool, currency)}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-1 items-stretch gap-6 overflow-hidden">
-          <div style={{ width: "clamp(9rem, 15vw, 17rem)" }} className="shrink-0">
+          <div className="min-h-0 flex-1" style={{ marginTop: pu(1) }}>
             <StatsPanel
               remainingPlayers={remainingPlayers}
               totalRegistered={totalRegistered}
@@ -128,8 +127,51 @@ export default function ProjectorView({
               nextBreakSeconds={nextBreakSeconds}
             />
           </div>
+        </div>
 
-          <div className="flex flex-1 items-center justify-center overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div
+            className="flex max-w-full shrink-0 flex-col items-center"
+            style={{ paddingInline: pu(1) }}
+          >
+            <h1
+              className="max-w-full truncate text-center font-bold"
+              style={{
+                fontSize: pu(TITLE_SIZE),
+                lineHeight: HEADING_LINE_HEIGHT,
+              }}
+            >
+              {tournamentName}
+            </h1>
+            {/* Wraps onto extra rows rather than overflowing the column when
+                there are enough entry lines to exceed its width. */}
+            <div
+              className="flex max-w-full flex-wrap justify-center"
+              style={{
+                columnGap: pu(2.5),
+                rowGap: pu(0.3),
+                lineHeight: HEADING_LINE_HEIGHT,
+              }}
+            >
+              {entryPriceLines.map((line) => (
+                <p
+                  key={line.label}
+                  className="max-w-full whitespace-nowrap text-center"
+                  style={{ fontSize: pu(SUBTITLE_SIZE) }}
+                >
+                  {line.label}: {formatAmount(line.amountCents)}{" "}
+                </p>
+              ))}
+              <p
+                className="max-w-full whitespace-nowrap text-center"
+                style={{ fontSize: pu(SUBTITLE_SIZE) }}
+              >
+                Stack: {formatNumber(startingStack)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
             <ClockDisplay
               level={currentLevel}
               nextLevel={nextLevel}
@@ -138,12 +180,36 @@ export default function ProjectorView({
               isFinished={isFinished}
             />
           </div>
+        </div>
 
-          {/* The column keeps its width even with no payouts, so hiding the
-              table doesn't shift the clock off-center. */}
+        {/* Grows to fit long payout notes, but never past PAYOUT_MAX_WIDTH —
+            beyond that the clock column would be squeezed. The minimum keeps
+            the clock centred even when there are no payouts at all. */}
+        <div
+          style={{
+            width: "max-content",
+            minWidth: pu(PAYOUT_MIN_WIDTH),
+            maxWidth: pu(PAYOUT_MAX_WIDTH),
+          }}
+          className="flex shrink-0 flex-col overflow-hidden"
+        >
+          <div className="shrink-0 text-center">
+            <p
+              className="uppercase tracking-wide font-semibold"
+              style={{ fontSize: pu(1.8) }}
+            >
+              Prize Pool
+            </p>
+            <p
+              className="font-bold tabular-nums"
+              style={{ fontSize: pu(3) }}
+            >
+              {formatMoney(prizePool, currency)}
+            </p>
+          </div>
           <div
-            style={{ width: "clamp(10rem, 16vw, 19rem)" }}
-            className="shrink-0"
+            className="min-h-0 flex-1 overflow-hidden"
+            style={{ marginTop: pu(1) }}
           >
             {payoutResults.length > 0 && <PayoutTable results={payoutResults} />}
           </div>

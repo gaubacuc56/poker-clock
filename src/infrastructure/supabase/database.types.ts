@@ -11,6 +11,7 @@ export interface RawPayoutTier {
   position: number;
   value?: number;
   percentage?: number;
+  note?: string;
 }
 
 /** Hand-written mirror of supabase/migrations/*.sql — keep in sync with those files. */

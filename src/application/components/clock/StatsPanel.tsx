@@ -1,4 +1,5 @@
 import { formatDurationHMS, formatNumber } from '@domain/rules/format';
+import { pu } from '../../shared/projectorScale';
 
 interface StatsPanelProps {
   remainingPlayers: number;
@@ -40,16 +41,16 @@ export default function StatsPanel({
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="text-center">
+    <div className="text-right">
        <p
-        className="uppercase tracking-wide text-white font-semibold"
-        style={{ fontSize: 'clamp(0.65rem, 1.8vw, 3.5rem)' }}
+        className="whitespace-nowrap uppercase tracking-wide text-white font-semibold"
+        style={{ fontSize: pu(1.8) }}
       >
         {label}
       </p>
       <p
-        className="font-bold tabular-nums"
-        style={{ fontSize: 'clamp(1.1rem, 2.5vw, 4.5rem)' }}
+        className="whitespace-nowrap font-bold tabular-nums"
+        style={{ fontSize: pu(2.5) }}
       >
         {value}
       </p>

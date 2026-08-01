@@ -1,6 +1,11 @@
 import type { BlindLevel } from '@domain/entities';
 import { formatClock, formatCompactNumber } from '@domain/rules/format';
 import { formatBlinds, formatBlindsLine, formatChipRaceLabel, formatLevelLabel } from '@domain/rules/blindFormat';
+import { pu } from '../../shared/projectorScale';
+
+/** The level/break heading above the clock and the blinds/ante lines below it
+ *  are the same size, so the clock sits between two matching bands of text. */
+const LEVEL_TEXT_SIZE = 4.2;
 
 interface ClockDisplayProps {
   level: BlindLevel;
@@ -22,7 +27,7 @@ export default function ClockDisplay({
     <div className="flex flex-col items-center text-center text-white">
       <p
         className="font-bold uppercase tracking-wide"
-        style={{ fontSize: level.isBreak ? 'clamp(1.5rem, 4vw, 5rem)': 'clamp(1.5rem, 3.5vw, 4.5rem)' }}
+        style={{ fontSize: pu(LEVEL_TEXT_SIZE) }}
       >
         {formatLevelLabel(level)}
       </p>
@@ -30,7 +35,7 @@ export default function ClockDisplay({
       {level.isBreak && level.chipRace && (
         <p
           className="font-semibold uppercase tracking-wide"
-          style={{ fontSize: 'clamp(1.25rem, 2.8vw, 4.5rem)' }}
+          style={{ fontSize: pu(2.8) }}
         >
           {formatChipRaceLabel(level)}
         </p>
@@ -40,22 +45,23 @@ export default function ClockDisplay({
         className="font-mono font-black leading-none tabular-nums"
         style={{
           // "FINISHED" is a longer word than the countdown, so give it a
-          // smaller clamp to keep it from overflowing the clock column.
-          fontSize: isFinished
-            ? 'clamp(4rem, 10vw, 13rem)'
-            : 'clamp(6rem, 14vw, 18rem)',
+          // smaller size to keep it from overflowing the clock column.
+          fontSize: isFinished ? pu(10) : pu(14),
           WebkitTextStroke: '0.02em currentColor',
         }}
       >
         {isFinished ? 'FINISHED' : isPaused ? 'PAUSED' : formatClock(secondsRemaining)}
       </p>
 
-      <div className="mt-4 flex flex-col self-stretch text-center">
+      <div
+        className="flex flex-col self-stretch text-center"
+        style={{ marginTop: pu(1) }}
+      >
         {!level.isBreak && (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col" style={{ gap: pu(0.25) }}>
             <div
               className="flex items-baseline justify-between font-semibold"
-              style={{ fontSize: 'clamp(1.75rem, 3.6vw, 5rem)' }}
+              style={{ fontSize: pu(LEVEL_TEXT_SIZE) }}
             >
               <span>BLINDS :</span>
               <span>{formatBlinds(level)}</span>
@@ -63,7 +69,7 @@ export default function ClockDisplay({
             {level.ante > 0 && (
               <div
                 className="flex items-baseline justify-between font-semibold"
-                style={{ fontSize: 'clamp(1.75rem, 3.6vw, 5rem)' }}
+                style={{ fontSize: pu(LEVEL_TEXT_SIZE) }}
               >
                 <span>ANTE :</span>
                 <span>{formatCompactNumber(level.ante)}</span>
@@ -73,7 +79,7 @@ export default function ClockDisplay({
         )}
 
         {nextLevel && (
-          <p className="mt-3" style={{ fontSize: 'clamp(2rem, 3.4vw, 5rem)' }}>
+          <p style={{ fontSize: pu(3.4), marginTop: pu(0.75) }}>
             Next: {nextLevel.isBreak ? formatLevelLabel(nextLevel) : formatBlindsLine(nextLevel)}
           </p>
         )}

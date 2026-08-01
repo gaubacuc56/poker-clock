@@ -24,11 +24,11 @@ interface ProjectorCaptureFrameProps {
 }
 
 /**
- * Hosts projector content inside a hidden, off-screen 1920×1080 iframe. Because
- * an iframe establishes its own viewport, the projector's vw-based font/spacing
- * (clamp()) resolves against 1920 no matter the device that triggers the
- * capture — so a phone produces the same HD image a desktop would, instead of a
- * broken layout scaled to the phone's width.
+ * Hosts projector content inside a hidden, off-screen 1920×1080 iframe, so the
+ * projector root is laid out at HD size and its container-relative scale
+ * (`--pu`) resolves against 1920×1080 no matter the device that triggers the
+ * capture — a phone produces the same HD image a desktop would, instead of a
+ * layout scaled down to the phone's width.
  */
 const ProjectorCaptureFrame = forwardRef<
   ProjectorCaptureFrameHandle,

@@ -33,6 +33,7 @@ function rowToTournament(row: Omit<TournamentRow, 'owner_id'>): TournamentConfig
     payoutTiers: row.payout_tiers.map((tier) => ({
       position: tier.position,
       value: tier.value ?? tier.percentage ?? 0,
+      note: tier.note ?? undefined,
     })),
     payoutUnit: row.payout_unit,
     sounds: row.sounds,

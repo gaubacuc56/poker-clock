@@ -1,48 +1,38 @@
 import type { PayoutResult } from '@domain/entities';
-import { formatMoney } from '@domain/rules/format';
+import {
+  formatPayoutPlace,
+  formatPayoutPrize,
+  groupPayoutResults,
+} from '@domain/rules/payouts';
+import { pu } from '../../shared/projectorScale';
 
 interface PayoutTableProps {
   results: PayoutResult[];
 }
 
-interface PayoutRow {
-  from: number;
-  to: number;
-  amount: number;
-}
-
-/** Collapse consecutive positions that pay the same amount into a single row
- *  (e.g. positions 9–12 with equal payouts become one "9 - 12" line). */
-function groupResults(results: PayoutResult[]): PayoutRow[] {
-  const rows: PayoutRow[] = [];
-  for (const result of results) {
-    const last = rows[rows.length - 1];
-    if (last && last.amount === result.amount && result.position === last.to + 1) {
-      last.to = result.position;
-    } else {
-      rows.push({ from: result.position, to: result.position, amount: result.amount });
-    }
-  }
-  return rows;
-}
-
 export default function PayoutTable({ results }: PayoutTableProps) {
-  const rows = groupResults(results);
+  const rows = groupPayoutResults(results);
+  const cellPadding = { paddingInline: pu(0.6) };
   return (
-    <table className="w-full text-left" style={{ fontSize: 'clamp(0.8rem, 2.1vw, 3.5rem)' }}>
+    <table className="w-full text-left" style={{ fontSize: pu(2.2) }}>
       <thead className="text-white">
         <tr>
-          <th className="px-3 text-center">Place</th>
-          <th className="px-3 text-center">Payout</th>
+          <th className="text-center" style={cellPadding}>Place</th>
+          <th className="text-center" style={cellPadding}>Payout</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((row) => (
           <tr key={row.from} className="border-t border-slate-800">
-            <td className="px-3 text-center">
-              {row.from === row.to ? row.from : `${row.from} - ${row.to}`}
+            <td className="whitespace-nowrap text-center" style={cellPadding}>
+              {formatPayoutPlace(row)}
             </td>
-            <td className="px-3 text-center font-bold">{formatMoney(row.amount)}</td>
+            <td
+              className="text-center font-bold [overflow-wrap:anywhere]"
+              style={cellPadding}
+            >
+              {formatPayoutPrize(row)}
+            </td>
           </tr>
         ))}
       </tbody>

@@ -10,7 +10,6 @@ import { normalizeBlindLevels, renumberLevels } from '@domain/rules/blindStructu
 import { createDefaultPayoutTiers } from '@domain/rules/presets/payoutStructures';
 import { formatNumber } from '@domain/rules/format';
 import { fromCents, toCents } from '@domain/rules/money';
-import { getPayoutTotals } from '@domain/rules/payouts';
 import { validateRebuyAddOnPrices } from '@domain/rules/tournamentValidation';
 import { DEFAULT_ENTRANT_COUNT } from '@domain/rules/tournamentLifecycle';
 import BlindLevelsTable from '../../components/setup/BlindLevelsTable';
@@ -177,7 +176,6 @@ export default function SetupWizardPage() {
   const guaranteedPrizePoolCents = draft.guaranteedPrizePool
     ? toCents(Number(draft.guaranteedPrizePool))
     : 0;
-  const { isValid: payoutValid } = getPayoutTotals(customTiers, payoutUnit, guaranteedPrizePoolCents);
   const rebuyAddOnPriceError = validateRebuyAddOnPrices({
     allowRebuy: draft.allowRebuy,
     rebuyPrice: Number(draft.rebuyPrice),
@@ -190,10 +188,6 @@ export default function SetupWizardPage() {
   async function handleFinish() {
     if (rebuyAddOnPriceError) {
       setStep(1);
-      return;
-    }
-    if (!payoutValid) {
-      setStep(3);
       return;
     }
     const tournament: TournamentConfig = {
@@ -234,8 +228,11 @@ export default function SetupWizardPage() {
     }
   }
 
-  const canAdvance = (step !== 1 || !rebuyAddOnPriceError) && (step !== 3 || payoutValid);
-  const canSave = !rebuyAddOnPriceError && payoutValid;
+  // A payout total that doesn't match the guarantee is surfaced as a warning in
+  // the editor, not a block — some tournaments intentionally pay out something
+  // other than the advertised guarantee.
+  const canAdvance = step !== 1 || !rebuyAddOnPriceError;
+  const canSave = !rebuyAddOnPriceError;
 
   return (
     <div className="flex h-screen overflow-hidden bg-themed-primary text-themed-primary">
