@@ -13,6 +13,7 @@ import { fromCents, toCents } from '@domain/rules/money';
 import { validateRebuyAddOnPrices } from '@domain/rules/tournamentValidation';
 import { DEFAULT_ENTRANT_COUNT } from '@domain/rules/tournamentLifecycle';
 import BlindLevelsTable from '../../components/setup/BlindLevelsTable';
+import BlindStructureImport from '../../components/setup/BlindStructureImport';
 import PayoutStructureEditor from '../../components/payouts/PayoutStructureEditor';
 import TournamentSidebar from '../../components/layout/TournamentSidebar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -419,6 +420,11 @@ export default function SetupWizardPage() {
 
         {step === 2 && (
           <div className="space-y-3">
+            <BlindStructureImport
+              levels={customLevels}
+              onImport={setCustomLevels}
+              tournamentName={draft.name}
+            />
             <BlindLevelsTable levels={customLevels} editable onChange={setCustomLevels} />
           </div>
         )}

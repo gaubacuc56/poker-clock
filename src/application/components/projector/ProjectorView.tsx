@@ -20,7 +20,7 @@ interface EntryPriceLine {
 // heading's total height is known without measuring it, and the left column can
 // reserve exactly that much space for the logo.
 const TITLE_SIZE = 4;
-const SUBTITLE_SIZE = 2.6;
+const SUBTITLE_SIZE = 2.8;
 const HEADING_LINE_HEIGHT = 1.2;
 const HEADING_HEIGHT = (TITLE_SIZE + SUBTITLE_SIZE) * HEADING_LINE_HEIGHT;
 
