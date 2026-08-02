@@ -129,12 +129,11 @@ export function formatPayoutPlace(row: PayoutRow): string {
   return row.from === row.to ? `${row.from}` : `${row.from} - ${row.to}`;
 }
 
-/** A place can pay cash, a written prize, or both — show whichever was filled
- *  in, joined with a "+" when there are two. */
-export function formatPayoutPrize(row: PayoutRow): string {
-  const parts: string[] = [];
-  if (row.amount > 0) parts.push(formatMoney(row.amount));
-  if (row.note) parts.push(row.note);
-  // A place with neither still needs a cell; fall back to the formatted zero.
-  return parts.length > 0 ? parts.join(' + ') : formatMoney(row.amount);
+/** The cash half of a row's prize — `null` when the place pays a written prize
+ *  only, so the caller renders the note alone. A place with neither still shows
+ *  the formatted zero rather than an empty line. The note itself is left raw:
+ *  it's displayed in its own style, so it never gets joined into this string. */
+export function formatPayoutCash(row: PayoutRow): string | null {
+  if (row.amount > 0) return formatMoney(row.amount);
+  return row.note ? null : formatMoney(row.amount);
 }

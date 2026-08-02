@@ -8,7 +8,7 @@ import {
 } from "../../shared/projectorScale";
 import ClockDisplay from "../clock/ClockDisplay";
 import StatsPanel from "../clock/StatsPanel";
-import PayoutTable from "../payouts/PayoutTable";
+import PayoutList from "../payouts/PayoutList";
 import ClubLogo from "./ClubLogo";
 
 interface EntryPriceLine {
@@ -31,7 +31,7 @@ const STATS_COLUMN_WIDTH = 15;
 /** Payout column bounds, in projector units. The maximum leaves the clock
  *  column enough room for its widest blinds line. */
 const PAYOUT_MIN_WIDTH = 16;
-const PAYOUT_MAX_WIDTH = 22;
+const PAYOUT_MAX_WIDTH = 16;
 
 export interface ProjectorViewProps {
   tournamentName: string;
@@ -193,7 +193,7 @@ export default function ProjectorView({
           }}
           className="flex shrink-0 flex-col overflow-hidden"
         >
-          <div className="shrink-0 text-center">
+          <div className="shrink-0">
             <p
               className="uppercase tracking-wide font-semibold"
               style={{ fontSize: pu(1.8) }}
@@ -211,7 +211,7 @@ export default function ProjectorView({
             className="min-h-0 flex-1 overflow-hidden"
             style={{ marginTop: pu(1) }}
           >
-            {payoutResults.length > 0 && <PayoutTable results={payoutResults} />}
+            {payoutResults.length > 0 && <PayoutList results={payoutResults} />}
           </div>
         </div>
       </div>
