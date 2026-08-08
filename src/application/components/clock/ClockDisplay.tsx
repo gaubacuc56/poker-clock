@@ -7,6 +7,17 @@ import { pu } from '../../shared/projectorScale';
  *  are the same size, so the clock sits between two matching bands of text. */
 const LEVEL_TEXT_SIZE = 4.2;
 
+/** Under a minute left on a play level. */
+const LOW_TIME_SECONDS = 60;
+
+/** Per-state colouring, mirroring the control screen's dial so both surfaces
+ *  read the same at a glance: gold running, teal on a break, coral running out. */
+const TONES = {
+  normal: { heading: 'text-accent', digits: 'text-fg [text-shadow:0_0_0.08em_rgba(245,197,66,.35)]' },
+  break: { heading: 'text-break', digits: 'text-break [text-shadow:0_0_0.08em_rgba(92,201,193,.4)]' },
+  low: { heading: 'text-coral', digits: 'text-coral [text-shadow:0_0_0.08em_rgba(255,107,90,.45)]' },
+} as const;
+
 interface ClockDisplayProps {
   level: BlindLevel;
   nextLevel?: BlindLevel;
@@ -23,10 +34,17 @@ export default function ClockDisplay({
   isPaused,
   isFinished = false,
 }: ClockDisplayProps) {
+  const isLowTime =
+    !isFinished &&
+    !level.isBreak &&
+    secondsRemaining > 0 &&
+    secondsRemaining <= LOW_TIME_SECONDS;
+  const tone = TONES[level.isBreak ? 'break' : isLowTime ? 'low' : 'normal'];
+
   return (
-    <div className="flex flex-col items-center text-center text-white">
+    <div className="flex flex-col items-center text-center">
       <p
-        className="font-bold uppercase tracking-wide"
+        className={`display font-bold uppercase tracking-[0.06em] ${tone.heading}`}
         style={{ fontSize: pu(LEVEL_TEXT_SIZE) }}
       >
         {formatLevelLabel(level)}
@@ -34,7 +52,7 @@ export default function ClockDisplay({
 
       {level.isBreak && level.chipRace && (
         <p
-          className="font-semibold uppercase tracking-wide"
+          className="font-semibold uppercase tracking-[0.06em] text-muted"
           style={{ fontSize: pu(2.8) }}
         >
           {formatChipRaceLabel(level)}
@@ -42,13 +60,10 @@ export default function ClockDisplay({
       )}
 
       <p
-        className="font-mono font-black leading-none tabular-nums"
-        style={{
-          // "FINISHED" is a longer word than the countdown, so give it a
-          // smaller size to keep it from overflowing the clock column.
-          fontSize: isFinished ? pu(10) : pu(14),
-          WebkitTextStroke: '0.02em currentColor',
-        }}
+        className={`display leading-none font-black tabular-nums tracking-[-0.03em] [-webkit-text-stroke:0.02em_currentColor] ${tone.digits}`}
+        // "FINISHED" is a longer word than the countdown, so give it a smaller
+        // size to keep it from overflowing the clock column.
+        style={{ fontSize: isFinished ? pu(10) : pu(14) }}
       >
         {isFinished ? 'FINISHED' : isPaused ? 'PAUSED' : formatClock(secondsRemaining)}
       </p>
@@ -63,23 +78,25 @@ export default function ClockDisplay({
               className="flex items-baseline justify-between font-semibold"
               style={{ fontSize: pu(LEVEL_TEXT_SIZE) }}
             >
-              <span>BLINDS :</span>
-              <span>{formatBlinds(level)}</span>
+              <span className="tracking-[0.06em] text-faint">BLINDS :</span>
+              <span className="display tabular-nums text-fg">{formatBlinds(level)}</span>
             </div>
             {level.ante > 0 && (
               <div
                 className="flex items-baseline justify-between font-semibold"
                 style={{ fontSize: pu(LEVEL_TEXT_SIZE) }}
               >
-                <span>ANTE :</span>
-                <span>{formatCompactNumber(level.ante)}</span>
+                <span className="tracking-[0.06em] text-faint">ANTE :</span>
+                <span className="display tabular-nums text-fg">
+                  {formatCompactNumber(level.ante)}
+                </span>
               </div>
             )}
           </div>
         )}
 
         {nextLevel && (
-          <p style={{ fontSize: pu(3.4), marginTop: pu(0.75) }}>
+          <p className="text-muted" style={{ fontSize: pu(3.4), marginTop: pu(0.75) }}>
             Next: {nextLevel.isBreak ? formatLevelLabel(nextLevel) : formatBlindsLine(nextLevel)}
           </p>
         )}

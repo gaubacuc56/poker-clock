@@ -3,10 +3,15 @@ interface SpinnerProps {
 }
 
 /** Small inline loading circle for buttons mid-request. Inherits color via `currentColor`. */
-export default function Spinner({ className = 'w-4 h-4' }: SpinnerProps) {
+export default function Spinner({ className = 'size-4' }: SpinnerProps) {
   return (
-    <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <svg
+      className={`shrink-0 animate-spin ${className}`}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
       <path
         className="opacity-90"
         fill="currentColor"

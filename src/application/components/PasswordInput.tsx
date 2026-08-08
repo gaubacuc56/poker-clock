@@ -16,19 +16,19 @@ export default function PasswordInput({ value, onChange, autoComplete, required 
       <input
         type={visible ? 'text' : 'password'}
         required={required}
-        className="input pr-10"
+        className="input pr-11"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
       />
       <button
         type="button"
-        className="absolute inset-y-0 right-0 flex items-center px-3 text-themed-muted"
+        className="btn btn-icon btn-quiet absolute top-1/2 right-0.5 -translate-y-1/2"
         onClick={() => setVisible((v) => !v)}
         tabIndex={-1}
         aria-label={visible ? 'Hide password' : 'Show password'}
       >
-        {visible ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+        {visible ? <EyeOffIcon className="size-[17px]" /> : <EyeIcon className="size-[17px]" />}
       </button>
     </div>
   );

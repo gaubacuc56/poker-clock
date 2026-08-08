@@ -8,16 +8,18 @@ import {
 import { createDefaultBlindLevels } from '@domain/rules/presets/blindStructures';
 import { normalizeBlindLevels, renumberLevels } from '@domain/rules/blindStructureEditor';
 import { createDefaultPayoutTiers } from '@domain/rules/presets/payoutStructures';
-import { formatNumber } from '@domain/rules/format';
+import { formatAmount, formatNumber } from '@domain/rules/format';
 import { fromCents, toCents } from '@domain/rules/money';
+import { getEntryPriceLines } from '@domain/rules/entryPricing';
 import { validateRebuyAddOnPrices } from '@domain/rules/tournamentValidation';
 import { DEFAULT_ENTRANT_COUNT } from '@domain/rules/tournamentLifecycle';
 import BlindLevelsTable from '../../components/setup/BlindLevelsTable';
 import BlindStructureImport from '../../components/setup/BlindStructureImport';
 import PayoutStructureEditor from '../../components/payouts/PayoutStructureEditor';
-import TournamentSidebar from '../../components/layout/TournamentSidebar';
-import PageHeader from '../../components/layout/PageHeader';
+import Screen from '../../components/layout/Screen';
+import TopBar, { BackLink } from '../../components/layout/TopBar';
 import Spinner from '../../components/Spinner';
+import { WarningIcon } from '../../components/icons';
 import {
   DEFAULT_SOUND_SETTINGS,
   type BlindLevel,
@@ -29,7 +31,7 @@ import {
   type TournamentConfig,
 } from '@domain/entities';
 import Field from './sections/Field';
-import Checkbox from './sections/Checkbox';
+import Switch from './sections/Switch';
 import SoundField from './sections/SoundField';
 
 interface DraftTournament {
@@ -65,9 +67,7 @@ const STEPS = ['Basics', 'Stack', 'Blinds', 'Payouts', 'Sounds', 'Review'];
 export default function SetupWizardPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const existing = useTournamentStore((state) =>
-    id ? state.getById(id) : undefined,
-  );
+  const existing = useTournamentStore((state) => (id ? state.getById(id) : undefined));
   const saveTournament = useTournamentStore((state) => state.save);
   const currencies = useCurrencyStore((state) => state.currencies);
   const backgroundOptions = useBackgroundStore((state) => state.backgrounds);
@@ -123,9 +123,7 @@ export default function SetupWizardPage() {
   useEffect(() => {
     if (existing || currencies.length === 0) return;
     setDraft((d) =>
-      currencies.some((c) => c.code === d.currency)
-        ? d
-        : { ...d, currency: currencies[0].code },
+      currencies.some((c) => c.code === d.currency) ? d : { ...d, currency: currencies[0].code },
     );
   }, [existing, currencies]);
 
@@ -163,10 +161,7 @@ export default function SetupWizardPage() {
     }
   }, [existing, customTiers.length]);
 
-  function update<K extends keyof DraftTournament>(
-    key: K,
-    value: DraftTournament[K],
-  ) {
+  function update<K extends keyof DraftTournament>(key: K, value: DraftTournament[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
   }
 
@@ -235,223 +230,288 @@ export default function SetupWizardPage() {
   const canAdvance = step !== 1 || !rebuyAddOnPriceError;
   const canSave = !rebuyAddOnPriceError;
 
+  const selectedBackground = backgroundOptions.find(
+    (background) => background.id === draft.projectorBackgroundId,
+  );
+  const priceLine = getEntryPriceLines({
+    buyIn: toCents(Number(draft.buyIn)),
+    allowRebuy: draft.allowRebuy,
+    rebuyPrice: toCents(Number(draft.rebuyPrice)),
+    allowAddOn: draft.allowAddOn,
+    addOnPrice: toCents(Number(draft.addOnPrice)),
+  })
+    .map((line) => `${line.label} ${formatAmount(line.amountCents)}`)
+    .join(' · ');
+  const breakCount = customLevels.filter((level) => level.isBreak).length;
+
+  const review: { k: string; v: string }[] = [
+    { k: 'Name', v: draft.name || 'Untitled Tournament' },
+    {
+      k: 'Buy-in + fee',
+      v: `${formatNumber(Number(draft.buyIn))} + ${formatNumber(Number(draft.fee))} ${draft.currency}`,
+    },
+    { k: 'Entrants', v: formatNumber(Number(draft.entrantCount)) },
+    {
+      k: 'Rebuys',
+      v: draft.allowRebuy ? `${formatNumber(Number(draft.rebuyPrice))} ${draft.currency}` : 'None',
+    },
+    {
+      k: 'Add-ons',
+      v: draft.allowAddOn ? `${formatNumber(Number(draft.addOnPrice))} ${draft.currency}` : 'None',
+    },
+    {
+      k: 'Blind levels',
+      v: `${customLevels.length - breakCount} levels · ${breakCount} breaks`,
+    },
+    { k: 'Payout places', v: String(customTiers.length) },
+    {
+      k: 'Sounds',
+      v: `${Object.values(draft.sounds).filter((s) => s !== 'none').length} of ${
+        SOUND_TRIGGERS.length
+      } sounds configured`,
+    },
+  ];
+
   return (
-    <div className="flex h-screen overflow-hidden bg-themed-primary text-themed-primary">
-      {id && <TournamentSidebar tournamentId={id} />}
+    <Screen>
+      <TopBar>
+        {existing && id ? (
+          <BackLink to={`/tournament/${id}/control`} label="Back to timer" />
+        ) : (
+          <BackLink to="/" label="Back to dashboard" glyph="home" />
+        )}
+        <h1 className="text-[22px]">{existing ? 'Edit tournament' : 'New tournament'}</h1>
+      </TopBar>
 
-      <div className={`flex flex-1 flex-col ${id ? 'pb-16 md:pb-0' : ''}`}>
-        <PageHeader />
-
-        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-2xl">
-        <h1 className="mb-6 text-2xl font-semibold">
-          {existing ? 'Edit Tournament' : 'New Tournament'}
-        </h1>
-
-        <ol className="mb-8 flex gap-2 overflow-x-auto text-sm text-themed-muted">
-          {STEPS.map((label, index) => (
-            <li
-              key={label}
-              className={`flex-none whitespace-nowrap border-b-2 px-1 pb-2 sm:flex-1 sm:text-center ${
-                index === step
-                  ? 'border-accent text-accent'
-                  : 'border-themed'
-              }`}
-            >
+      <nav
+        className="scroll rail flex-none overflow-x-auto overflow-y-hidden px-3.5 pt-3 pb-2.5"
+        aria-label="Setup steps"
+      >
+        {/* Sized to its steps rather than `content`'s full width, so a narrow
+            phone still overflows the nav and scrolls sideways as before. */}
+        <div className="mx-auto flex w-max max-w-3xl gap-0.5">
+          {STEPS.map((label, index) => {
+            const isActive = index === step;
+            return (
               <button
+                key={label}
                 type="button"
-                className="w-full cursor-pointer bg-transparent text-inherit"
                 onClick={() => setStep(index)}
+                aria-current={isActive ? 'step' : undefined}
+                className="flex w-18 flex-none cursor-pointer flex-col items-center gap-1.5 border-0 bg-transparent p-0 font-[inherit] text-inherit"
               >
-                {label}
+                <span
+                  className={`chip size-8 text-[16px] ${isActive ? 'chip-gold' : 'chip-slate'}`}
+                >
+                  {index + 1}
+                </span>
+                <span
+                  className={`text-[13px] tracking-[.08em] ${
+                    isActive ? 'text-accent-lift' : 'text-faint'
+                  }`}
+                >
+                  {label}
+                </span>
               </button>
-            </li>
-          ))}
-        </ol>
+            );
+          })}
+        </div>
+      </nav>
 
-        {step === 0 && (
-          <div className="space-y-4">
-            <Field label="Tournament name">
-              <input
-                className="input"
-                value={draft.name}
-                onChange={(e) => update('name', e.target.value)}
-                placeholder="Friday Night Poker"
-              />
-            </Field>
-            <Field label="Projector background">
-              <select
-                className="input"
-                value={draft.projectorBackgroundId}
-                onChange={(e) => update('projectorBackgroundId', e.target.value)}
-              >
-                {backgroundOptions.map((background) => (
-                  <option key={background.id} value={background.id}>
-                    {background.label}
-                  </option>
-                ))}
-              </select>
-              {backgroundOptions.find((background) => background.id === draft.projectorBackgroundId) && (
-                <img
-                  src={
-                    backgroundOptions.find(
-                      (background) => background.id === draft.projectorBackgroundId,
-                    )?.path
-                  }
-                  alt="Projector background preview"
-                  className="mt-2 h-32 w-full rounded-lg border border-slate-700 object-cover"
+      <div className="scroll felt px-4 pt-4 pb-6">
+        <div className="content">
+          {step === 0 && (
+            <div className="flex flex-col gap-3.5">
+              <Field label="Tournament name">
+                <input
+                  className="input h-[42px] text-[22px] text-white"
+                  value={draft.name}
+                  onChange={(e) => update('name', e.target.value)}
+                  placeholder="Friday Night Poker"
                 />
+              </Field>
+              <Field label="Projector background">
+                <select
+                  className="input"
+                  value={draft.projectorBackgroundId}
+                  onChange={(e) => update('projectorBackgroundId', e.target.value)}
+                >
+                  {backgroundOptions.map((background) => (
+                    <option key={background.id} value={background.id}>
+                      {background.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {selectedBackground && (
+                <div className="relative aspect-video overflow-hidden rounded-2xl bg-chrome shadow-lift-sm">
+                  <img
+                    src={selectedBackground.path}
+                    alt="Projector background preview"
+                    className="size-full object-cover opacity-75"
+                  />
+                  <span className="absolute bottom-2.5 left-2.5 rounded-[10px] bg-black/70 px-2 py-[3px] text-[13px] tracking-[.14em] uppercase">
+                    Live preview
+                  </span>
+                </div>
               )}
-            </Field>
-          </div>
-        )}
-
-        {step === 1 && (
-          <div className="space-y-4">
-            <Field label="Currency / unit">
-              <select
-                className="input"
-                value={draft.currency}
-                onChange={(e) => update('currency', e.target.value as CurrencyUnit)}
-              >
-                {currencies.map((currency) => (
-                  <option key={currency.code} value={currency.code}>
-                    {currency.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Buy-in">
-                <input
-                  type="number"
-                  className="input"
-                  value={draft.buyIn}
-                  onChange={(e) => update('buyIn', e.target.value)}
-                />
-              </Field>
-              <Field label="Fee / rake">
-                <input
-                  type="number"
-                  className="input"
-                  value={draft.fee}
-                  onChange={(e) => update('fee', e.target.value)}
-                />
-              </Field>
-              <Field label="Starting stack">
-                <input
-                  type="number"
-                  className="input"
-                  value={draft.startingStack}
-                  onChange={(e) => update('startingStack', e.target.value)}
-                />
-              </Field>
-              <Field label="Max players / table">
-                <input
-                  type="number"
-                  className="input"
-                  value={draft.maxPlayersPerTable}
-                  onChange={(e) => update('maxPlayersPerTable', e.target.value)}
-                />
-              </Field>
-              <Field label="Late reg closes after level">
-                <input
-                  type="number"
-                  className="input"
-                  value={draft.lateRegLevel}
-                  onChange={(e) => update('lateRegLevel', e.target.value)}
-                />
-              </Field>
-              <Field label={`Guaranteed prize pool (${draft.currency}, optional)`}>
-                <input
-                  type="number"
-                  className="input"
-                  value={draft.guaranteedPrizePool}
-                  onChange={(e) => update('guaranteedPrizePool', e.target.value)}
-                />
-              </Field>
             </div>
+          )}
 
-            <div className="space-y-3 pt-2">
-              <Checkbox
-                label="Allow rebuys"
-                checked={draft.allowRebuy}
-                onChange={(checked) => update('allowRebuy', checked)}
-              />
-              {draft.allowRebuy && (
-                <Field label="Rebuy price">
+          {step === 1 && (
+            <>
+              {/* One field per row at every width — the wizard's stack step reads
+                  top-to-bottom rather than wrapping into uneven columns. */}
+              <div className="grid grid-cols-1 gap-3">
+                <Field label="Currency / unit">
+                  <select
+                    className="input"
+                    value={draft.currency}
+                    onChange={(e) => update('currency', e.target.value as CurrencyUnit)}
+                  >
+                    {currencies.map((currency) => (
+                      <option key={currency.code} value={currency.code}>
+                        {currency.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Buy-in">
                   <input
                     type="number"
-                    className="input"
-                    value={draft.rebuyPrice}
-                    onChange={(e) => update('rebuyPrice', e.target.value)}
+                    className="input tabular-nums"
+                    value={draft.buyIn}
+                    onChange={(e) => update('buyIn', e.target.value)}
                   />
+                </Field>
+                <Field label="Fee / rake">
+                  <input
+                    type="number"
+                    className="input tabular-nums"
+                    value={draft.fee}
+                    onChange={(e) => update('fee', e.target.value)}
+                  />
+                </Field>
+                <Field label="Starting stack">
+                  <input
+                    type="number"
+                    className="input tabular-nums"
+                    value={draft.startingStack}
+                    onChange={(e) => update('startingStack', e.target.value)}
+                  />
+                </Field>
+                <Field label="Max players per table">
+                  <input
+                    type="number"
+                    className="input tabular-nums"
+                    value={draft.maxPlayersPerTable}
+                    onChange={(e) => update('maxPlayersPerTable', e.target.value)}
+                  />
+                </Field>
+                <Field label="Late reg closes after level">
+                  <input
+                    type="number"
+                    className="input tabular-nums"
+                    value={draft.lateRegLevel}
+                    onChange={(e) => update('lateRegLevel', e.target.value)}
+                  />
+                </Field>
+                <Field label={`Guaranteed prize pool (${draft.currency}, optional)`}>
+                  <input
+                    type="number"
+                    className="input tabular-nums"
+                    placeholder="—"
+                    value={draft.guaranteedPrizePool}
+                    onChange={(e) => update('guaranteedPrizePool', e.target.value)}
+                  />
+                </Field>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3">
+                <div className="card gap-2.5">
+                  <Switch
+                    label="Allow rebuys"
+                    checked={draft.allowRebuy}
+                    onChange={(checked) => update('allowRebuy', checked)}
+                  />
+                  {draft.allowRebuy && (
+                    <Field label="Rebuy price">
+                      <input
+                        type="number"
+                        className={`input tabular-nums ${rebuyPriceValid ? '' : 'input-bad'}`}
+                        value={draft.rebuyPrice}
+                        onChange={(e) => update('rebuyPrice', e.target.value)}
+                      />
+                    </Field>
+                  )}
                   {!rebuyPriceValid && (
-                    <p className="mt-1 text-sm text-red-400">
-                      Rebuy price is required and must be greater than 0.
+                    <p className="flex gap-1.5 text-[18px] text-coral">
+                      <WarningIcon className="size-[15px] shrink-0" />
+                      Rebuy price must be greater than 0.
                     </p>
                   )}
-                </Field>
-              )}
-              <Checkbox
-                label="Allow add-ons"
-                checked={draft.allowAddOn}
-                onChange={(checked) => update('allowAddOn', checked)}
-              />
-              {draft.allowAddOn && (
-                <Field label="Add-on price">
-                  <input
-                    type="number"
-                    className="input"
-                    value={draft.addOnPrice}
-                    onChange={(e) => update('addOnPrice', e.target.value)}
+                </div>
+
+                <div className="card gap-2.5">
+                  <Switch
+                    label="Allow add-ons"
+                    checked={draft.allowAddOn}
+                    onChange={(checked) => update('allowAddOn', checked)}
                   />
+                  {draft.allowAddOn && (
+                    <Field label="Add-on price">
+                      <input
+                        type="number"
+                        className={`input tabular-nums ${addOnPriceValid ? '' : 'input-bad'}`}
+                        value={draft.addOnPrice}
+                        onChange={(e) => update('addOnPrice', e.target.value)}
+                      />
+                    </Field>
+                  )}
                   {!addOnPriceValid && (
-                    <p className="mt-1 text-sm text-red-400">
-                      Add-on price is required and must be greater than 0.
+                    <p className="flex gap-1.5 text-[18px] text-coral">
+                      <WarningIcon className="size-[15px] shrink-0" />
+                      Add-on price must be greater than 0.
                     </p>
                   )}
-                </Field>
-              )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {step === 2 && (
+            <div className="flex flex-col gap-3.5">
+              <BlindStructureImport
+                levels={customLevels}
+                onImport={setCustomLevels}
+                tournamentName={draft.name}
+              />
+              <BlindLevelsTable levels={customLevels} editable onChange={setCustomLevels} />
             </div>
-          </div>
-        )}
+          )}
 
-        {step === 2 && (
-          <div className="space-y-3">
-            <BlindStructureImport
-              levels={customLevels}
-              onImport={setCustomLevels}
-              tournamentName={draft.name}
-            />
-            <BlindLevelsTable levels={customLevels} editable onChange={setCustomLevels} />
-          </div>
-        )}
+          {step === 3 && (
+            <div className="flex flex-col gap-2.5">
+              <p className="text-[16px] text-muted">
+                Customize the payout split — as a percentage of the pool, or as fixed{' '}
+                {draft.currency} amounts that add up to the guaranteed prize pool.
+              </p>
+              <PayoutStructureEditor
+                tiers={customTiers}
+                unit={payoutUnit}
+                onUnitChange={setPayoutUnit}
+                onChange={setCustomTiers}
+                currency={draft.currency}
+                guaranteedPrizePoolCents={guaranteedPrizePoolCents}
+              />
+            </div>
+          )}
 
-        {step === 3 && (
-          <div className="space-y-3">
-            <p className="text-sm text-themed-muted">
-              Customize the payout split — as a percentage of the pool, or as fixed{' '}
-              {draft.currency} amounts that add up to the guaranteed prize pool.
-            </p>
-            <PayoutStructureEditor
-              tiers={customTiers}
-              unit={payoutUnit}
-              onUnitChange={setPayoutUnit}
-              onChange={setCustomTiers}
-              currency={draft.currency}
-              guaranteedPrizePoolCents={guaranteedPrizePoolCents}
-            />
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className="space-y-3">
-            <p className="text-sm text-themed-muted">
-              Pick a sound for each event — defaults to none.
-            </p>
-            <div className="space-y-3">
+          {step === 4 && (
+            <div className="flex flex-col gap-2">
+              <p className="mb-1 text-[16px] text-muted">
+                Pick a sound for each event — defaults to none.
+              </p>
               {SOUND_TRIGGERS.map(({ key, label }) => (
                 <SoundField
                   key={key}
@@ -461,91 +521,92 @@ export default function SetupWizardPage() {
                 />
               ))}
             </div>
-          </div>
-        )}
+          )}
 
-        {step === 5 && (
-          <div className="space-y-2 text-sm">
-            <p>
-              <span className="text-themed-muted">Name:</span> {draft.name}
-            </p>
-            <p>
-              <span className="text-themed-muted">Buy-in:</span>{' '}
-              {formatNumber(Number(draft.buyIn))} + {formatNumber(Number(draft.fee))} fee
-            </p>
-            <p>
-              <span className="text-themed-muted">Entrants:</span>{' '}
-              {formatNumber(Number(draft.entrantCount))}
-            </p>
-            <p>
-              <span className="text-themed-muted">Rebuys / Add-ons:</span>{' '}
-              {draft.allowRebuy ? `Rebuys (${formatNumber(Number(draft.rebuyPrice))})` : null}
-              {draft.allowRebuy && draft.allowAddOn ? ', ' : null}
-              {draft.allowAddOn ? `Add-ons (${formatNumber(Number(draft.addOnPrice))})` : null}
-              {!draft.allowRebuy && !draft.allowAddOn ? 'None' : null}
-            </p>
-            <p>
-              <span className="text-themed-muted">Blind levels:</span>{' '}
-              {customLevels.length}
-            </p>
-            <p>
-              <span className="text-themed-muted">Payout places:</span>{' '}
-              {customTiers.length}
-            </p>
-            <p>
-              <span className="text-themed-muted">Sounds configured:</span>{' '}
-              {Object.values(draft.sounds).filter((s) => s !== 'none').length} of{' '}
-              {SOUND_TRIGGERS.length}
-            </p>
-          </div>
-        )}
+          {step === 5 && (
+            <div>
+              <div className="slab mb-[18px] flex flex-col rounded-[18px]">
+                <div className="flex items-center gap-3.5 px-4 pt-4 pb-3.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] tracking-[.18em] uppercase text-accent">
+                      Your tournament
+                    </div>
+                    <div className="engrave display mt-1 truncate text-[24px]">
+                      {draft.name || 'Untitled Tournament'}
+                    </div>
+                    <div className="mt-0.5 text-[18px] text-faint">{priceLine}</div>
+                  </div>
+                  <div className="flex-none text-center">
+                    <div className="kicker mb-1 text-[12px]">Join code</div>
+                    <span className="plate text-[22px] text-accent-lift">
+                      {existing?.joinCode ?? '—'}
+                    </span>
+                  </div>
+                </div>
+                <div className="mx-3 border-t border-dashed border-hair-strong" />
+                <div className="flex h-[45px] items-center px-4 text-[14px] text-muted">
+                  {existing?.joinCode
+                    ? 'Players type this code on the TV to open the projector.'
+                    : 'A join code is assigned as soon as the tournament is created.'}
+                </div>
+              </div>
 
-        </div>
-        </main>
-
-        <div className="shrink-0 border-t border-themed bg-themed-secondary/80 px-4 py-3 backdrop-blur-sm sm:px-6">
-          <div className="mx-auto flex max-w-2xl justify-between gap-3">
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={step === 0}
-              onClick={() => setStep((s) => Math.max(0, s - 1))}
-            >
-              Back
-            </button>
-            {existing ? (
-              <button
-                type="button"
-                className="btn-primary inline-flex items-center gap-2"
-                disabled={!canSave || isSaving}
-                onClick={handleFinish}
-              >
-                {isSaving && <Spinner />}
-                Save Changes
-              </button>
-            ) : step < STEPS.length - 1 ? (
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={!canAdvance}
-                onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="btn-primary inline-flex items-center gap-2"
-                disabled={isSaving}
-                onClick={handleFinish}
-              >
-                {isSaving && <Spinner />}
-                Create Tournament
-              </button>
-            )}
-          </div>
+              {review.map((row) => (
+                <div
+                  key={row.k}
+                  className="flex justify-between gap-4 border-b border-hair px-0.5 py-[11px]"
+                >
+                  <span className="text-[16px] text-muted">{row.k}</span>
+                  <span className="text-right text-[20px]">{row.v}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
-    </div>
+
+      <div className="bar bar-bottom px-4 py-[11px]">
+        <div className="content flex items-center gap-2.5">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={step === 0}
+            onClick={() => setStep((s) => Math.max(0, s - 1))}
+          >
+            Back
+          </button>
+          {existing ? (
+            <button
+              type="button"
+              className="btn btn-primary ml-auto min-w-33"
+              disabled={!canSave || isSaving}
+              onClick={handleFinish}
+            >
+              {isSaving && <Spinner />}
+              Save Changes
+            </button>
+          ) : step < STEPS.length - 1 ? (
+            <button
+              type="button"
+              className="btn btn-primary ml-auto min-w-33"
+              disabled={!canAdvance}
+              onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
+            >
+              Next
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary ml-auto min-w-33"
+              disabled={isSaving}
+              onClick={handleFinish}
+            >
+              {isSaving && <Spinner />}
+              Create Tournament
+            </button>
+          )}
+        </div>
+      </div>
+    </Screen>
   );
 }

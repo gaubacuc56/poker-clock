@@ -26,7 +26,7 @@ const HEADING_HEIGHT = (TITLE_SIZE + SUBTITLE_SIZE) * HEADING_LINE_HEIGHT;
 
 /** Left column width, in projector units — sized so "TOTAL ENTRIES", the
  *  longest stat label, fits on one line. */
-const STATS_COLUMN_WIDTH = 15;
+const STATS_COLUMN_WIDTH = 20;
 
 /** Payout column bounds, in projector units. The maximum leaves the clock
  *  column enough room for its widest blinds line. */
@@ -79,6 +79,7 @@ export default function ProjectorView({
   avgStack,
   nextBreakSeconds,
 }: ProjectorViewProps) {
+  console.log("prizePool", )
   return (
     <div
       className="relative h-full w-full overflow-hidden bg-slate-950 text-white"

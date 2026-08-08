@@ -17,9 +17,9 @@ function totalMoneyIn(tournament: TournamentConfig): number {
 }
 
 /** When a guarantee is set, it IS the prize pool — no entrant/buy-in math involved. Only falls back to computing from entries when there's no guarantee at all. */
-export function calculatePrizePoolForTournament(tournament: TournamentConfig): number {
-  if (tournament.guaranteedPrizePool != null) return tournament.guaranteedPrizePool;
-  return totalMoneyIn(tournament);
+export function calculatePrizePoolForTournament(tournament: TournamentConfig): number  {
+  if (tournament.guaranteedPrizePool != null) return tournament.guaranteedPrizePool ;
+  return 0;
 }
 
 /** Rebuys/add-ons are assumed to grant the same starting stack as an initial buy-in. */

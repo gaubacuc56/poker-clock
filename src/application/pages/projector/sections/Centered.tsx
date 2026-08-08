@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 export default function Centered({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-slate-950 text-2xl text-white">
+    <div className="felt flex h-screen w-screen items-center justify-center px-8 text-center text-2xl text-muted">
       {children}
     </div>
   );

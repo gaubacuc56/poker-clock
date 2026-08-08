@@ -1,110 +1,557 @@
 @import 'tailwindcss';
 
-/* Register the themeable accent as a real color so Tailwind generates its
-   utilities *and* opacity variants (bg-accent/15, border-accent/30, …). The
-   value tracks the runtime --accent-rgb var below, so theming still works. */
+/*
+ * Poker Clock house style — warm table, chips, plates.
+ *
+ * Same split this file has always had: design tokens first, then the handful of
+ * component classes that are too custom to express as utilities. Everything
+ * else is Tailwind, written directly in the markup.
+ *
+ * The tokens are registered with `@theme` rather than kept as loose CSS
+ * variables so Tailwind generates real utilities for them — `text-muted`,
+ * `bg-surface`, `border-line`, `shadow-lift-md` — instead of every component
+ * reaching for `text-[var(--muted)]`.
+ */
 @theme {
-  --color-accent: rgb(var(--accent-rgb));
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+
+  /* three background layers */
+  --color-base: #100e08;
+  --color-base-deep: #080704;
+  --color-chrome: #0b0a06;
+  --color-surface: #211d14;
+  --color-surface-2: #1b1810;
+
+  /* three text emphases */
+  --color-fg: #f7f3e7;
+  --color-muted: #cbc1a9;
+  --color-faint: #a79d85;
+
+  /* borders, weakest to strongest */
+  --color-hair: rgb(247 243 231 / 0.1);
+  --color-line: rgb(247 243 231 / 0.18);
+  --color-hair-strong: rgb(247 243 231 / 0.3);
+
+  /* the themeable accent: primary buttons, active nav, finished/final emphasis */
+  --color-accent: #f5c542;
+  --color-accent-lift: #ffdb74;
+  --color-accent-on: #1b1503;
+
+  /* semantics: teal = break, coral = danger/low-time, ember = live */
+  --color-break: #5cc9c1;
+  --color-break-text: #93e1db;
+  --color-coral: #ff6b5a;
+  --color-coral-text: #ffa79b;
+  --color-coral-on: #2a0c06;
+  --color-ember: #ff7a18;
+
+  --radius-field: 14px;
+  --radius-card: 20px;
+
+  --shadow-lift-sm: inset 0 1px 0 rgb(247 243 231 / 0.05), 0 1px 2px rgb(0 0 0 / 0.25);
+  --shadow-lift-md: inset 0 1px 0 rgb(247 243 231 / 0.06), 0 6px 16px rgb(0 0 0 / 0.28);
+  --shadow-lift-lg: inset 0 1px 0 rgb(247 243 231 / 0.07), 0 14px 34px rgb(0 0 0 / 0.4);
 }
 
+/* Gradients and insets can't live in `@theme` — Tailwind only namespaces
+   single values — so the multi-layer surfaces stay as plain variables and are
+   consumed by the component classes below. */
 :root {
   color-scheme: dark;
 
-  --bg-primary: 9 9 11;
-  --bg-secondary: 24 24 27;
-  --bg-tertiary: 39 39 42;
-  --text-primary: 244 244 245;
-  --text-secondary: 161 161 170;
-  --text-muted: 113 113 122;
-  --border-color: 39 39 42;
-  --accent-rgb: 59 130 246;
+  --slab: linear-gradient(180deg, #262014 0%, #19160e 100%);
+  --rail: linear-gradient(180deg, #2a2415 0%, #16130b 100%);
+  --rail-edge: inset 0 1px 0 rgb(247 243 231 / 0.1), 0 8px 22px rgb(0 0 0 / 0.5);
+  --felt:
+    radial-gradient(68% 42% at 50% -4%, rgb(255 214 120 / 0.2), transparent 62%),
+    repeating-linear-gradient(48deg, rgb(0 0 0 / 0.035) 0 3px, rgb(255 255 255 / 0.01) 3px 6px),
+    radial-gradient(130% 95% at 50% 40%, #1e1b10 0%, #131009 58%, #0a0905 100%);
+  --plate-bg: linear-gradient(180deg, rgb(0 0 0 / 0.34), rgb(0 0 0 / 0.14));
+  --plate-edge: inset 0 1px 3px rgb(0 0 0 / 0.7), 0 1px 0 rgb(247 243 231 / 0.07);
+  --sunk: rgb(0 0 0 / 0.28);
+  --dock-bg: rgb(20 17 10 / 0.92);
+  --btn-soft: rgb(247 243 231 / 0.09);
+  --btn-soft-h: rgb(247 243 231 / 0.16);
+  --ticket: #2c2517;
+  --ticket-h: #362e1d;
+  --chip-slate-face: #322c1f;
+  --chip-slate-edge: #5b5238;
+  --chip-slate-shade: #14110a;
 }
 
-body {
-  margin: 0;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-  background-color: rgb(var(--bg-primary));
-  color: rgb(var(--text-primary));
-}
+@layer base {
+  body {
+    margin: 0;
+    background: var(--color-base);
+    color: var(--color-fg);
+    font-family: var(--font-body);
+    font-size: 18px;
+    line-height: 1.5;
+  }
 
-#root {
-  min-height: 100svh;
-}
+  #root {
+    min-height: 100svh;
+  }
 
-/* Native number spinners eat too much width on the compact mobile blind/payout editors. */
-input[type='number']::-webkit-outer-spin-button,
-input[type='number']::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-input[type='number'] {
-  -moz-appearance: textfield;
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: --alpha(var(--color-accent) / 15%);
+  }
+
+  /* Native number spinners eat too much width on the compact mobile
+     blind/payout editors. */
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }
 
 @layer components {
-  .btn-primary,
-  .btn-secondary,
-  .btn-ghost,
-  .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-medium transition-all duration-200;
-    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
-    --tw-ring-offset-color: rgb(var(--bg-primary));
+  /* — type — */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 600;
+  }
+  .engrave {
+    text-shadow: 0 1px 0 rgb(247 243 231 / 0.06);
+  }
+  .kicker {
+    @apply text-[13px] uppercase tracking-[0.18em] text-faint;
   }
 
-  .btn-primary {
-    background-color: rgb(var(--accent-rgb));
-    @apply text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40;
-    --tw-ring-color: rgb(var(--accent-rgb));
+  /* — surfaces — */
+  .felt {
+    background: var(--felt);
   }
-
-  .btn-secondary {
-    background-color: rgb(var(--bg-tertiary));
-    color: rgb(var(--text-primary));
-    @apply hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40;
-    --tw-ring-color: rgb(var(--bg-tertiary));
+  .rail {
+    @apply relative z-2 flex flex-none items-center gap-2 px-3.5 py-2.5;
+    background: var(--rail);
+    box-shadow: var(--rail-edge);
   }
-
-  .btn-ghost {
-    @apply bg-transparent hover:bg-zinc-800/50 disabled:cursor-not-allowed disabled:opacity-40;
-    color: rgb(var(--text-secondary));
+  .bar {
+    @apply flex flex-none items-center gap-2.5 bg-chrome px-4 py-3;
   }
-  .btn-ghost:hover {
-    color: rgb(var(--text-primary));
+  .bar-top {
+    box-shadow: inset 0 -1px 0 var(--color-hair);
   }
-
-  .btn-danger {
-    @apply bg-red-600 text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40;
-    --tw-ring-color: theme('colors.red.600');
+  .bar-bottom {
+    box-shadow: inset 0 1px 0 var(--color-hair);
   }
-
+  .slab {
+    @apply shadow-lift-md;
+    background: var(--slab);
+  }
   .card {
-    background-color: rgb(var(--bg-secondary) / 0.5);
-    border: 1px solid rgb(var(--border-color));
-    @apply rounded-2xl backdrop-blur-sm;
+    @apply flex flex-col gap-2 rounded-card bg-surface p-3.5 shadow-lift-sm;
+  }
+  .sunken {
+    @apply rounded-2xl;
+    background: var(--sunk);
+    box-shadow: inset 0 0 0 1px var(--color-hair);
+  }
+  .plate {
+    @apply inline-flex items-center gap-2 rounded-[7px] px-3 py-1 font-display font-semibold tracking-[0.2em];
+    background: var(--plate-bg);
+    box-shadow: var(--plate-edge);
+  }
+  .tag {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-[14px] font-medium text-fg;
+    background: var(--btn-soft);
+  }
+  .hr {
+    @apply my-3.5 h-px border-0 bg-hair;
+  }
+  .scroll {
+    @apply min-h-0 flex-1 overflow-auto;
+  }
+  /* The one content column every operator screen shares — body, top bar and
+     bottom bar all line up on it, so nothing drifts apart on a wide window. */
+  .content {
+    @apply mx-auto w-full max-w-3xl;
+  }
+  .scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll::-webkit-scrollbar-thumb {
+    background: var(--color-line);
+    border-radius: 8px;
+  }
+  .scroll::-webkit-scrollbar-track {
+    background: transparent;
   }
 
+  /* — buttons — */
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border-0 bg-transparent px-4 py-2.5 font-body text-[20px]/tight font-medium text-fg no-underline;
+    @apply transition-[background-color,color,transform] duration-150;
+  }
+  .btn:active:not(:disabled) {
+    @apply translate-y-px;
+  }
+  .btn:disabled {
+    @apply translate-y-0 cursor-not-allowed opacity-40;
+  }
+  .btn-primary {
+    @apply bg-accent font-bold text-accent-on;
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.07);
+  }
+  .btn-secondary {
+    @apply text-fg;
+    background: var(--btn-soft);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--btn-soft-h);
+  }
+  .btn-ghost {
+    @apply px-2.5 text-accent-lift;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    @apply bg-accent/15;
+  }
+  .btn-quiet {
+    @apply text-muted;
+  }
+  .btn-quiet:hover:not(:disabled) {
+    @apply text-fg;
+    background: var(--btn-soft);
+  }
+  .btn-danger {
+    @apply bg-coral font-bold text-coral-on;
+  }
+  .btn-danger:hover:not(:disabled) {
+    filter: brightness(1.07);
+  }
+  .btn-danger-quiet {
+    @apply text-coral;
+  }
+  .btn-danger-quiet:hover:not(:disabled) {
+    @apply bg-coral/10;
+  }
+  .btn-icon {
+    @apply size-[38px] flex-none p-0;
+  }
+
+  /* — forms — */
+  .field-label {
+    @apply mb-1 block text-[18px] text-muted;
+  }
   .input {
-    @apply w-full rounded-lg px-4 py-2.5;
-    background-color: rgb(var(--bg-secondary));
-    border: 1px solid rgb(var(--border-color));
-    color: rgb(var(--text-primary));
-    @apply transition-colors duration-200 placeholder:text-zinc-500 focus:outline-none focus:ring-1;
-    --tw-ring-color: rgb(var(--accent-rgb));
+    @apply min-h-10 w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-[18px] text-fg;
+    font: inherit;
+    font-size: 18px;
+    caret-color: var(--color-accent);
   }
-  .input:focus {
-    border-color: rgb(var(--accent-rgb));
+  .input::placeholder {
+    @apply text-faint;
+  }
+  .input:hover:not(:disabled) {
+    @apply border-hair-strong;
+  }
+  .input:focus-visible {
+    @apply border-accent;
+    outline-offset: 0;
+  }
+  .input:disabled {
+    @apply opacity-55;
+  }
+  .input-bad {
+    @apply border-coral;
+  }
+  /* A native select arrow can't be restyled, so it is drawn with two gradients. */
+  select.input {
+    appearance: none;
+    padding-right: 26px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--color-muted) 50%),
+      linear-gradient(135deg, var(--color-muted) 50%, transparent 50%);
+    background-position: right 14px center, right 9px center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
   }
 
-  .timer-display {
-    font-variant-numeric: tabular-nums;
-    @apply font-mono tracking-tight;
+  /* segmented control */
+  .seg {
+    @apply inline-flex gap-0.5 rounded-full p-[3px];
+    background: var(--btn-soft);
+  }
+  .seg-opt {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-full border-0 bg-transparent px-3 py-1.5 text-[16px] text-muted transition-all duration-150;
+    font: inherit;
+    font-size: 16px;
+  }
+  .seg-opt:hover {
+    @apply text-fg;
+  }
+  .seg-opt[aria-pressed='true'] {
+    @apply bg-accent font-medium text-accent-on;
   }
 
-  .text-themed-primary { color: rgb(var(--text-primary)); }
-  .text-themed-secondary { color: rgb(var(--text-secondary)); }
-  .text-themed-muted { color: rgb(var(--text-muted)); }
-  .bg-themed-primary { background-color: rgb(var(--bg-primary)); }
-  .bg-themed-secondary { background-color: rgb(var(--bg-secondary)); }
-  .bg-themed-tertiary { background-color: rgb(var(--bg-tertiary)); }
-  .border-themed { border-color: rgb(var(--border-color)); }
+  /* checkbox + switch: the native control is hidden and its state drives a
+     sibling, which utilities alone can't reach */
+  .check {
+    @apply inline-flex cursor-pointer items-center gap-2 text-[20px];
+  }
+  .check input {
+    @apply pointer-events-none absolute size-0 opacity-0;
+  }
+  .check .box {
+    @apply size-[18px] flex-none rounded-[5px] border-[1.5px] border-hair-strong transition-all duration-150;
+  }
+  .check:hover .box {
+    @apply border-accent;
+  }
+  .check input:checked + .box {
+    @apply border-accent bg-accent;
+    box-shadow: inset 0 0 0 3px var(--color-surface);
+  }
+  .check input:focus-visible + .box,
+  .check input:focus-visible ~ .switch {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  .switch {
+    @apply inline-flex h-[22px] w-[38px] flex-none items-center rounded-xl bg-hair p-0.5 transition-colors duration-150;
+  }
+  .check input:checked ~ .switch {
+    @apply bg-accent;
+  }
+  .switch::after {
+    @apply size-[18px] rounded-full bg-fg transition-transform duration-150;
+    content: '';
+  }
+  .check input:checked ~ .switch::after {
+    @apply translate-x-4 bg-accent-on;
+  }
+
+  /* — chips: the transport and counter controls, drawn as poker chips — */
+  .chip {
+    @apply relative inline-flex flex-none cursor-pointer items-center justify-center rounded-full border-0 font-display font-bold text-accent-on;
+    @apply transition-[transform,filter] duration-150;
+    background: radial-gradient(circle at 50% 38%, rgb(255 255 255 / 0.2), transparent 52%),
+      radial-gradient(circle at 50% 50%, var(--chip-face) 0 62%, transparent 62.4%),
+      conic-gradient(from 9deg, var(--chip-edge) 0 18deg, var(--chip-face) 18deg 36deg);
+    box-shadow: 0 5px 0 -1px var(--chip-shade), 0 12px 22px rgb(0 0 0 / 0.35),
+      inset 0 0 0 1px rgb(0 0 0 / 0.22);
+  }
+  .chip::after {
+    @apply absolute inset-[12%] rounded-full;
+    content: '';
+    box-shadow: inset 0 0 0 2px rgb(0 0 0 / 0.14);
+  }
+  .chip:hover:not(:disabled) {
+    filter: brightness(1.06);
+  }
+  .chip:active:not(:disabled) {
+    @apply translate-y-1;
+    box-shadow: 0 1px 0 -1px var(--chip-shade), 0 4px 10px rgb(0 0 0 / 0.35),
+      inset 0 0 0 1px rgb(0 0 0 / 0.22);
+  }
+  .chip:disabled {
+    @apply cursor-not-allowed opacity-35;
+  }
+  .chip-gold {
+    --chip-face: var(--color-accent);
+    --chip-edge: #17130a;
+    --chip-shade: #8f6f12;
+  }
+  .chip-slate {
+    @apply text-fg;
+    --chip-face: var(--chip-slate-face);
+    --chip-edge: var(--chip-slate-edge);
+    --chip-shade: var(--chip-slate-shade);
+  }
+
+  /* — tournament ticket with a tear-off stub — */
+  .tkt {
+    @apply relative flex flex-col overflow-hidden rounded-field transition-colors duration-150;
+    background: var(--ticket);
+    /* Two real notches punched at the stub's top edge, so the felt shows through. */
+    --perf: calc(100% - 47px);
+    -webkit-mask-image: radial-gradient(circle 10px at 0 var(--perf), transparent 98%, #000 100%),
+      radial-gradient(circle 10px at 100% var(--perf), transparent 98%, #000 100%);
+    -webkit-mask-composite: source-in;
+    mask-image: radial-gradient(circle 10px at 0 var(--perf), transparent 98%, #000 100%),
+      radial-gradient(circle 10px at 100% var(--perf), transparent 98%, #000 100%);
+    mask-composite: intersect;
+  }
+  .tkt:hover {
+    background: var(--ticket-h);
+  }
+  .tkt-main {
+    @apply flex w-full min-w-0 flex-1 items-end gap-3.5 border-0 bg-none px-4 pt-[26px] pb-4 text-left;
+    font-family: inherit;
+    color: inherit;
+  }
+  /* Only the name navigates — the rest of the ticket body is inert. */
+  .tkt-name {
+    @apply block max-w-full cursor-pointer truncate transition-colors duration-150;
+    color: inherit;
+  }
+  .tkt-name:hover {
+    @apply text-accent-lift;
+  }
+  .tkt-stub {
+    @apply relative flex items-stretch;
+  }
+  .tkt-perf {
+    @apply absolute inset-x-0 -top-px h-px;
+    background: repeating-linear-gradient(to right, var(--color-hair-strong) 0 5px, transparent 5px 10px);
+  }
+  .tkt-act {
+    @apply flex flex-1 cursor-pointer items-center justify-center gap-2 border-0 bg-none px-2 py-3 font-body text-[16px] font-medium text-muted transition-colors duration-150;
+  }
+  .tkt-act:hover:not(:disabled) {
+    @apply text-fg;
+    background: var(--btn-soft);
+  }
+  .tkt-act:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+  .tkt-act-go {
+    @apply font-bold text-accent;
+  }
+  .tkt-act-go:hover {
+    @apply bg-accent/15 text-accent-lift;
+  }
+  .tkt-div {
+    @apply w-px self-stretch;
+    background: repeating-linear-gradient(to bottom, var(--color-hair-strong) 0 4px, transparent 4px 8px);
+  }
+  .tkt-del {
+    @apply absolute top-2.5 right-3 z-3 grid size-[30px] cursor-pointer place-items-center rounded-full border-0 bg-none text-faint transition-colors duration-150;
+  }
+  .tkt-del:hover {
+    @apply bg-coral/10 text-coral;
+  }
+
+  /* — dock — */
+  /* Pinned to the bottom of the screen column, not floating over it. */
+  .dock {
+    @apply z-25 flex-none px-4 pt-1.5;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    background: var(--dock-bg);
+    box-shadow: inset 0 1px 0 var(--color-hair);
+  }
+  .dock-row {
+    @apply flex items-stretch gap-[3px];
+  }
+  .dock .btn {
+    @apply min-h-11 flex-1 flex-col gap-1 px-4 py-2 text-[15px] text-muted;
+  }
+  /* The current tab is marked by its color alone — no filled pill. */
+  .dock .btn[aria-current='page'] {
+    @apply bg-transparent font-bold text-accent;
+  }
+
+  /* — overlays — */
+  .dialog-backdrop {
+    @apply fixed inset-0 z-70 grid place-items-center p-4 backdrop-blur-[3px];
+    background: rgb(12 10 6 / 0.7);
+  }
+  .dialog {
+    @apply flex w-[min(430px,100%)] flex-col gap-2.5 rounded-3xl bg-surface p-5 shadow-lift-lg;
+  }
+  .dialog-title {
+    @apply font-display text-[24px] font-semibold;
+  }
+  .dialog-body {
+    @apply text-[20px] text-muted;
+  }
+  .toast {
+    @apply fixed bottom-24 left-1/2 z-60 -translate-x-1/2 rounded-2xl bg-surface px-4 py-2.5 text-[16px] shadow-lift-md;
+    animation: toastin 0.18s ease;
+  }
+}
+
+/* — motion — */
+@keyframes cdpulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@keyframes lvlin {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes toastin {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ringpop {
+  from {
+    transform: scale(0.93);
+    opacity: 0.35;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.045);
+  }
+}
+@keyframes tickin {
+  from {
+    opacity: 0.2;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes colonblink {
+  0%,
+  48% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.22;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

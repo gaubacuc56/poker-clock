@@ -25,9 +25,9 @@ export default function PayoutList({ results }: PayoutListProps) {
       {rows.map((row) => {
         const cash = formatPayoutCash(row);
         return (
-          <p key={row.from} className="[overflow-wrap:anywhere]">
-            <span>{formatPayoutPlace(row)}.</span>{' '}
-            {cash && <span className="font-bold">{cash}</span>}
+          <p key={row.from} className="[overflow-wrap:anywhere] text-muted">
+            <span className="text-faint tabular-nums">{formatPayoutPlace(row)}.</span>{' '}
+            {cash && <span className="display font-bold tabular-nums text-fg">{cash}</span>}
             {row.note && (
               <span className="font-normal" style={{ fontSize: pu(NOTE_SIZE) }}>
                 {cash ? ' + ' : ''}

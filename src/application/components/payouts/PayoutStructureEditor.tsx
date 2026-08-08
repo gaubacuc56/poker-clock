@@ -3,7 +3,7 @@ import type { PayoutTier, PayoutUnit } from '@domain/entities';
 import { formatNumber } from '@domain/rules/format';
 import { fromCents, toCents } from '@domain/rules/money';
 import { getPayoutTotals, hasPayouts } from '@domain/rules/payouts';
-import { NoteIcon, PlusIcon, TrashIcon } from '../icons';
+import { NoteIcon, PlusIcon, TrashIcon, WarningIcon } from '../icons';
 
 interface PayoutStructureEditorProps {
   tiers: PayoutTier[];
@@ -76,103 +76,117 @@ export default function PayoutStructureEditor({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex gap-2 text-sm">
-        <button
-          type="button"
-          className={unit === 'percentage' ? 'btn-primary flex-1' : 'btn-secondary flex-1'}
-          onClick={() => onUnitChange('percentage')}
-        >
-          %
-        </button>
-        <button
-          type="button"
-          className={isAmount ? 'btn-primary flex-1' : 'btn-secondary flex-1'}
-          onClick={() => onUnitChange('amount')}
-        >
-          {currency}
+    <div className="flex flex-col gap-2.5">
+      <div className="flex items-center gap-2.5">
+        <div className="seg">
+          <button
+            type="button"
+            className="seg-opt"
+            aria-pressed={!isAmount}
+            onClick={() => onUnitChange('percentage')}
+          >
+            %
+          </button>
+          <button
+            type="button"
+            className="seg-opt"
+            aria-pressed={isAmount}
+            onClick={() => onUnitChange('amount')}
+          >
+            {currency}
+          </button>
+        </div>
+        <button type="button" className="btn btn-primary ml-auto" onClick={addTier}>
+          <PlusIcon className="size-[17px]" />
+          Add place
         </button>
       </div>
 
       {isAmount && guaranteedPrizePoolCents === 0 && (
-        <p className="text-sm text-amber-400">
-          Set a guaranteed prize pool in the Stack step first — payouts by amount split that
-          total.
+        <p className="flex gap-[7px] rounded-2xl bg-break/10 px-[11px] py-[9px] text-[18px] text-break">
+          <WarningIcon className="size-4 shrink-0" />
+          No guaranteed prize pool is set. Set one on the Stack step to enter payouts as amounts.
         </p>
       )}
 
-      <div className="space-y-1.5">
-        {tiers.map((tier, index) => {
-          const noteOpen = isNoteOpen(index);
-          return (
-            <div
-              key={index}
-              className="rounded-lg border border-themed bg-themed-secondary/40 px-3 py-2"
-            >
-              <div className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-2">
-                <span className="w-10 text-sm text-themed-muted">#{tier.position}</span>
-                <input
-                  type="number"
-                  className="input min-w-[6rem]"
-                  value={isAmount ? fromCents(tier.value) : tier.value}
-                  onChange={(e) => updateTier(index, Number(e.target.value))}
-                />
-                <span className="text-sm text-themed-muted">{isAmount ? currency : '%'}</span>
-                <button
-                  type="button"
-                  className={`rounded-md p-1.5 ${noteOpen ? 'bg-accent/15 text-accent' : 'btn-ghost'}`}
-                  onClick={() => toggleNote(index)}
-                  aria-expanded={noteOpen}
-                  title={noteOpen ? 'Remove note' : 'Add a note'}
-                  aria-label={noteOpen ? 'Remove note' : 'Add a note'}
-                >
-                  <NoteIcon className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md p-1.5 text-red-400 hover:bg-red-500/15"
-                  onClick={() => removeTier(index)}
-                  title="Remove place"
-                  aria-label="Remove place"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                </button>
-
-                {noteOpen && (
-                  <input
-                    type="text"
-                    className="input col-start-2 text-sm"
-                    placeholder="e.g. 1 ticket happy hour"
-                    value={tier.note ?? ''}
-                    onChange={(e) => updateNote(index, e.target.value)}
-                    autoFocus={tier.note === undefined}
-                  />
-                )}
-              </div>
+      {tiers.map((tier, index) => {
+        const noteOpen = isNoteOpen(index);
+        return (
+          <div
+            key={index}
+            className="flex flex-col gap-1.5 rounded-2xl bg-surface-2 px-2.5 py-[9px] shadow-lift-sm"
+          >
+            <div className="flex items-center gap-2">
+              <span className="w-[34px] text-[20px] tabular-nums text-muted">
+                #{tier.position}
+              </span>
+              <input
+                type="number"
+                className="input min-w-0 flex-1 tabular-nums"
+                aria-label={`Prize for place ${tier.position}`}
+                value={isAmount ? fromCents(tier.value) : tier.value}
+                onChange={(e) => updateTier(index, Number(e.target.value))}
+              />
+              <span className="w-[38px] text-[18px] text-faint">
+                {isAmount ? currency : '%'}
+              </span>
+              <button
+                type="button"
+                className={`btn btn-icon ${
+                  noteOpen ? 'text-accent-lift' : 'text-faint'
+                }`}
+                onClick={() => toggleNote(index)}
+                aria-expanded={noteOpen}
+                title={noteOpen ? 'Remove note' : 'Add a note'}
+                aria-label={noteOpen ? 'Remove note' : 'Add a note'}
+              >
+                <NoteIcon className="size-[17px]" />
+              </button>
+              <button
+                type="button"
+                className="btn btn-icon btn-danger-quiet"
+                onClick={() => removeTier(index)}
+                title="Remove place"
+                aria-label="Remove place"
+              >
+                <TrashIcon className="size-[17px]" />
+              </button>
             </div>
-          );
-        })}
-      </div>
-      <button type="button" className="btn-secondary w-full" onClick={addTier}>
-        <PlusIcon className="h-4 w-4" />
-        Add place
-      </button>
+
+            {noteOpen && (
+              <input
+                type="text"
+                className="input text-[20px]"
+                placeholder="1 ticket happy hour"
+                aria-label={`Written prize for place ${tier.position}`}
+                value={tier.note ?? ''}
+                onChange={(e) => updateNote(index, e.target.value)}
+                autoFocus={tier.note === undefined}
+              />
+            )}
+          </div>
+        );
+      })}
+
       {!hasPayouts(tiers) ? (
-        <p className="text-sm text-themed-muted">
-          Payouts are optional — leave empty and no payout table is shown. Add places to
-          configure one.
+        <p className="text-[18px] text-faint">
+          Payouts are optional — leave empty and no payout table is shown.
         </p>
       ) : total === 0 ? (
-        <p className="text-sm text-themed-muted">
-          Every place pays a written prize only.
-        </p>
+        <p className="text-[18px] text-faint">Every place pays a written prize only.</p>
       ) : (
-        <p className={`text-sm ${isValid ? 'text-emerald-400' : 'text-amber-400'}`}>
+        <p
+          className={`rounded-2xl px-2.5 py-2 text-[18px] ${
+            isValid
+              ? 'bg-accent/15 text-accent-lift'
+              : 'bg-break/10 text-break-text'
+          }`}
+        >
           Total: {isAmount ? `${formatNumber(fromCents(total))} ${currency}` : `${total}%`}
           {!isValid &&
-            ` (guarantee: ${
+            ` — does not match ${
               isAmount ? `${formatNumber(fromCents(target))} ${currency}` : '100%'
-            })`}
+            }`}
         </p>
       )}
     </div>

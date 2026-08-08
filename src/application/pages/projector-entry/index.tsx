@@ -1,10 +1,12 @@
-import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { findTournamentByJoinCode } from "@composition/container";
+import { useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { findTournamentByJoinCode } from '@composition/container';
+import Screen from '../../components/layout/Screen';
+import Brand from '../../components/layout/Brand';
 
 export default function ProjectorEntryPage() {
   const navigate = useNavigate();
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState('');
   const [checking, setChecking] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
@@ -30,44 +32,56 @@ export default function ProjectorEntryPage() {
   }
 
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-slate-950 px-4 text-white">
-      <form
-        onSubmit={handleSubmit}
-        className="flex w-full max-w-sm flex-col items-center gap-6"
-      >
-        <p className="text-center text-slate-400">
-          Enter the tournament code to open the projector.
-        </p>
+    <Screen>
+      <div className="scroll grid place-items-center bg-base-deep p-8">
+        <form onSubmit={handleSubmit} className="w-[min(420px,100%)]">
+          <div className="mb-5 flex items-center gap-[11px]">
+            <Brand className="size-11" />
+            <span className="text-[14px] tracking-[.18em] uppercase text-accent">
+              Poker Clock · Projector
+            </span>
+          </div>
 
-        <input
-          type="text"
-          value={code}
-          onChange={(e) => {
-            setCode(e.target.value);
-            if (notFound) setNotFound(false);
-          }}
-          placeholder="Enter code"
-          autoFocus
-          autoCapitalize="characters"
-          autoComplete="off"
-          spellCheck={false}
-          className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-center text-2xl font-semibold uppercase tracking-[0.3em] tabular-nums outline-none focus:border-accent"
-        />
-
-        <button
-          type="submit"
-          disabled={!code.trim() || checking}
-          className="btn-primary w-full py-3 text-lg disabled:opacity-50"
-        >
-          {checking ? "Checking…" : "Open Projector"}
-        </button>
-
-        {notFound && (
-          <p className="text-center text-red-400">
-            No tournament found for this code.
+          <h1 className="mb-1.5 text-[36px]">Open a projector</h1>
+          <p className="mb-[26px] text-[20px] text-muted">
+            Type the five-character join code shown on the organizer's dashboard.
           </p>
-        )}
-      </form>
-    </div>
+
+          <input
+            type="text"
+            className="input display h-[82px] border-hair-strong text-center text-[47px] tracking-[.34em] indent-[.34em] uppercase"
+            value={code}
+            onChange={(e) => {
+              setCode(e.target.value.toUpperCase());
+              if (notFound) setNotFound(false);
+            }}
+            placeholder="CODE"
+            aria-label="Join code"
+            autoFocus
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+          />
+
+          {notFound && (
+            <p className="mt-3 text-[16px] text-coral">
+              No tournament found for this code.
+            </p>
+          )}
+
+          <button
+            type="submit"
+            className="btn btn-primary mt-[18px] h-12 w-full text-[18px]"
+            disabled={!code.trim() || checking}
+          >
+            {checking ? 'Checking…' : 'Open Projector'}
+          </button>
+
+          <p className="mt-[18px] text-[18px] text-faint">
+            Codes never contain 0, O, 1, I or L.
+          </p>
+        </form>
+      </div>
+    </Screen>
   );
 }

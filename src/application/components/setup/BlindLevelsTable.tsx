@@ -10,7 +10,7 @@ import {
   createLevelAfter,
   renumberLevels,
 } from '@domain/rules/blindStructureEditor';
-import { ChevronDownIcon, ChevronUpIcon, PauseIcon, TrashIcon } from '../icons';
+import { ChevronDownIcon, ChevronUpIcon, PlusIcon, TrashIcon } from '../icons';
 
 interface BlindLevelsTableProps {
   levels: BlindLevel[];
@@ -42,15 +42,15 @@ function NumberField({
   placeholder?: string;
 }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-themed-muted">{label}</span>
+    <label className="block min-w-0">
+      <span className="field-label">{label}</span>
       <input
         type="number"
         min={min}
         step={step}
         inputMode="numeric"
         placeholder={placeholder}
-        className="w-full rounded-md bg-themed-tertiary px-3 py-2 text-sm tabular-nums"
+        className="input tabular-nums"
         value={allowEmpty && value === 0 ? '' : value}
         onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))}
       />
@@ -71,11 +71,11 @@ function TextField({
   placeholder?: string;
 }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-themed-muted">{label}</span>
+    <label className="block min-w-0">
+      <span className="field-label">{label}</span>
       <input
         type="text"
-        className="w-full rounded-md bg-themed-tertiary px-3 py-2 text-sm"
+        className="input"
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
@@ -97,25 +97,23 @@ function InsertBar({
   onAddBreak?: () => void;
 }) {
   return (
-    <div className="group flex items-center gap-2 py-0.5">
-      <div className="h-px flex-1 bg-themed opacity-60" />
-      <button
-        type="button"
-        className="rounded-md px-2 py-0.5 text-xs font-medium text-themed-muted transition-colors hover:bg-accent/15 hover:text-accent"
-        onClick={onAddLevel}
-      >
-        + Level
+    <div className="flex items-center gap-2 py-[5px]">
+      <div className="h-px flex-1 bg-linear-to-r from-transparent via-line to-transparent" />
+      <button type="button" className="btn btn-ghost text-[18px]" onClick={onAddLevel}>
+        <PlusIcon className="size-[13px]" />
+        Level
       </button>
       {onAddBreak && (
         <button
           type="button"
-          className="rounded-md px-2 py-0.5 text-xs font-medium text-themed-muted transition-colors hover:bg-amber-500/15 hover:text-amber-400"
+          className="btn btn-ghost text-[18px] text-break hover:bg-break/10"
           onClick={onAddBreak}
         >
-          + Break
+          <PlusIcon className="size-[13px]" />
+          Break
         </button>
       )}
-      <div className="h-px flex-1 bg-themed opacity-60" />
+      <div className="h-px flex-1 bg-linear-to-r from-transparent via-line to-transparent" />
     </div>
   );
 }
@@ -153,57 +151,56 @@ export default function BlindLevelsTable({
   }
 
   return (
-    <div className="space-y-1">
+    <div className="flex flex-col">
       {levels.map((level, index) => {
         const isActive = index === activeLevelIndex;
         return (
           <Fragment key={index}>
             <div
-              className={`rounded-lg border px-4 py-3 ${
-                isActive ? 'border-accent bg-accent/10' : 'border-themed bg-themed-secondary/40'
-              }`}
+              className={`flex flex-col gap-2 rounded-[18px] px-3 py-[11px] ring-1 ring-inset ${
+                level.isBreak ? 'bg-break/10' : 'bg-surface shadow-lift-sm'
+              } ${isActive ? 'ring-accent' : level.isBreak ? 'ring-break/30' : 'ring-transparent'}`}
             >
-              <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
                 <span
-                  className={`inline-flex items-center gap-1.5 text-sm font-semibold ${
-                    level.isBreak ? 'text-amber-400' : 'text-themed-primary'
+                  className={`display text-[20px] tracking-[.04em] ${
+                    level.isBreak ? 'text-break' : ''
                   }`}
                 >
-                  {level.isBreak && <PauseIcon className="h-4 w-4" />}
                   {formatLevelLabel(level)}
                 </span>
 
                 {editable && (
-                  <div className="flex items-center gap-1">
+                  <div className="ml-auto flex gap-0.5">
                     <button
                       type="button"
-                      className="btn-ghost rounded-md p-1.5 disabled:opacity-30"
+                      className="btn btn-icon btn-quiet"
                       disabled={index === 0}
                       onClick={() => moveLevel(index, -1)}
                       title="Move up"
                       aria-label="Move up"
                     >
-                      <ChevronUpIcon className="h-4 w-4" />
+                      <ChevronUpIcon className="size-4" />
                     </button>
                     <button
                       type="button"
-                      className="btn-ghost rounded-md p-1.5 disabled:opacity-30"
+                      className="btn btn-icon btn-quiet"
                       disabled={index === levels.length - 1}
                       onClick={() => moveLevel(index, 1)}
                       title="Move down"
                       aria-label="Move down"
                     >
-                      <ChevronDownIcon className="h-4 w-4" />
+                      <ChevronDownIcon className="size-4" />
                     </button>
                     <button
                       type="button"
-                      className="rounded-md p-1.5 text-red-400 hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-30"
+                      className="btn btn-icon btn-danger-quiet"
                       disabled={levels.length <= 1}
                       onClick={() => removeLevel(index)}
                       title="Remove"
                       aria-label="Remove"
                     >
-                      <TrashIcon className="h-4 w-4" />
+                      <TrashIcon className="size-4" />
                     </button>
                   </div>
                 )}
@@ -211,58 +208,52 @@ export default function BlindLevelsTable({
 
               {level.isBreak ? (
                 editable ? (
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-                      <div className="max-w-[10rem]">
-                        <NumberField
-                          label="Length (min)"
-                          value={secondsToMinutes(level.durationSeconds)}
-                          allowEmpty
-                          placeholder={String(secondsToMinutes(DEFAULT_BREAK_DURATION_SECONDS))}
-                          onChange={(minutes) => updateLevel(index, { durationSeconds: minutesToSeconds(minutes) })}
-                        />
-                      </div>
-                      <div className="min-w-[10rem] flex-1">
-                        <TextField
-                          label="Break title"
-                          value={level.breakLabel ?? ''}
-                          placeholder="e.g. 1st"
-                          onChange={(v) => updateLevel(index, { breakLabel: v })}
-                        />
-                      </div>
-                      <label className="flex items-center gap-2 py-2 text-sm text-themed-primary">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 accent-accent"
-                          checked={level.chipRace ?? false}
-                          onChange={(e) => updateLevel(index, { chipRace: e.target.checked })}
-                        />
-                        Chip Race
-                      </label>
+                  <>
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2">
+                      <NumberField
+                        label="Length (min)"
+                        value={secondsToMinutes(level.durationSeconds)}
+                        allowEmpty
+                        placeholder={String(secondsToMinutes(DEFAULT_BREAK_DURATION_SECONDS))}
+                        onChange={(minutes) =>
+                          updateLevel(index, { durationSeconds: minutesToSeconds(minutes) })
+                        }
+                      />
+                      <TextField
+                        label="Break title"
+                        value={level.breakLabel ?? ''}
+                        placeholder="1st"
+                        onChange={(v) => updateLevel(index, { breakLabel: v })}
+                      />
                     </div>
+                    <label className="check text-[16px]">
+                      <input
+                        type="checkbox"
+                        checked={level.chipRace ?? false}
+                        onChange={(e) => updateLevel(index, { chipRace: e.target.checked })}
+                      />
+                      <span className="box" />
+                      Chip race
+                    </label>
                     {level.chipRace && (
-                      <div className="max-w-[14rem]">
-                        <TextField
-                          label="Chip race title"
-                          value={level.chipRaceLabel ?? ''}
-                          placeholder="e.g. 1st"
-                          onChange={(v) => updateLevel(index, { chipRaceLabel: v })}
-                        />
-                      </div>
+                      <TextField
+                        label="Chip race title"
+                        value={level.chipRaceLabel ?? ''}
+                        placeholder="25s off"
+                        onChange={(v) => updateLevel(index, { chipRaceLabel: v })}
+                      />
                     )}
-                  </div>
+                  </>
                 ) : (
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                    <span className="text-themed-muted">
-                      {secondsToMinutes(level.durationSeconds)} min
-                    </span>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-[16px] text-muted">
+                    <span>{secondsToMinutes(level.durationSeconds)} min</span>
                     {level.chipRace && (
-                      <span className="text-amber-400">{formatChipRaceLabel(level)}</span>
+                      <span className="text-break">{formatChipRaceLabel(level)}</span>
                     )}
                   </div>
                 )
               ) : editable ? (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <NumberField
                     label="SB"
                     value={level.smallBlind}
@@ -287,24 +278,26 @@ export default function BlindLevelsTable({
                   <NumberField
                     label="Length (min)"
                     value={secondsToMinutes(level.durationSeconds)}
-                    onChange={(minutes) => updateLevel(index, { durationSeconds: minutesToSeconds(minutes) })}
+                    onChange={(minutes) =>
+                      updateLevel(index, { durationSeconds: minutesToSeconds(minutes) })
+                    }
                   />
                 </div>
               ) : (
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[16px]">
                   <span>
-                    <span className="text-themed-muted">SB </span>
+                    <span className="text-faint">SB </span>
                     {formatNumber(level.smallBlind)}
                   </span>
                   <span>
-                    <span className="text-themed-muted">BB </span>
+                    <span className="text-faint">BB </span>
                     {formatNumber(level.bigBlind)}
                   </span>
                   <span>
-                    <span className="text-themed-muted">Ante </span>
+                    <span className="text-faint">Ante </span>
                     {level.ante ? formatNumber(level.ante) : '-'}
                   </span>
-                  <span className="text-themed-muted">
+                  <span className="text-faint">
                     {secondsToMinutes(level.durationSeconds)} min
                   </span>
                 </div>
@@ -314,9 +307,7 @@ export default function BlindLevelsTable({
             {editable && (
               <InsertBar
                 onAddLevel={() => insertAt(index + 1, createLevelAfter(level))}
-                onAddBreak={
-                  level.isBreak ? undefined : () => insertAt(index + 1, createBreak())
-                }
+                onAddBreak={level.isBreak ? undefined : () => insertAt(index + 1, createBreak())}
               />
             )}
           </Fragment>

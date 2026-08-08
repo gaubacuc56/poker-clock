@@ -8,6 +8,11 @@ interface ConfirmDialogProps {
   message: string;
   /** Confirm button label. Defaults to "Delete". */
   confirmLabel?: string;
+  /**
+   * `danger` (default) is the coral treatment for anything destructive;
+   * `primary` is the gold one, for confirmations that only start over.
+   */
+  tone?: 'danger' | 'primary';
   /** Disables the confirm button and shows it as busy (e.g. while the delete request is in flight). */
   isBusy?: boolean;
   onConfirm: () => void;
@@ -16,14 +21,14 @@ interface ConfirmDialogProps {
 
 /**
  * Small modal used to guard destructive actions. Closes on Escape or a
- * backdrop click (both treated as cancel), and the confirm button is styled
- * as a danger action.
+ * backdrop click (both treated as cancel).
  */
 export default function ConfirmDialog({
   open,
   title,
   message,
   confirmLabel = 'Delete',
+  tone = 'danger',
   isBusy = false,
   onConfirm,
   onCancel,
@@ -40,26 +45,23 @@ export default function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={onCancel}
-    >
+    <div className="dialog-backdrop" onClick={onCancel}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="card w-full max-w-sm p-6"
+        className="dialog"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-2 text-lg font-semibold text-themed-primary">{title}</h2>
-        <p className="mb-6 text-sm text-themed-muted">{message}</p>
-        <div className="flex justify-end gap-2">
-          <button type="button" className="btn-secondary" onClick={onCancel} disabled={isBusy}>
+        <h2 className="dialog-title">{title}</h2>
+        <p className="dialog-body">{message}</p>
+        <div className="mt-1.5 flex justify-end gap-2">
+          <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={isBusy}>
             Cancel
           </button>
           <button
             type="button"
-            className="btn-danger inline-flex items-center gap-2"
+            className={tone === 'danger' ? 'btn btn-danger' : 'btn btn-primary'}
             onClick={onConfirm}
             disabled={isBusy}
           >

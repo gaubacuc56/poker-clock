@@ -157,14 +157,11 @@ export default function ProjectorPage() {
         <button
           type="button"
           onClick={enableSound}
-          className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-slate-950/80 text-white backdrop-blur-sm"
+          className="absolute inset-0 z-50 flex cursor-pointer flex-col items-center justify-center gap-4 border-0 bg-base-deep/80 text-fg backdrop-blur-sm"
           aria-label="Tap to enable sound"
         >
-          <span style={{ fontSize: "clamp(3rem, 8vw, 6rem)" }}>🔊</span>
-          <span
-            className="font-semibold"
-            style={{ fontSize: "clamp(1.25rem, 3vw, 2.5rem)" }}
-          >
+          <span className="text-[clamp(3rem,8vw,6rem)]">🔊</span>
+          <span className="display font-semibold text-[clamp(1.25rem,3vw,2.5rem)]">
             Tap to enable sound
           </span>
         </button>
