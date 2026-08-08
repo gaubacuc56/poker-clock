@@ -38,6 +38,7 @@ function rowToTournament(row: Omit<TournamentRow, 'owner_id'>): TournamentConfig
     payoutUnit: row.payout_unit,
     sounds: row.sounds,
     projectorBackgroundId: row.projector_background_id ?? undefined,
+    projectorLayout: row.projector?.layout ?? undefined,
     createdAt: row.created_at,
     status: row.status,
   };
@@ -73,6 +74,7 @@ function tournamentToRow(
     payout_unit: tournament.payoutUnit ?? 'percentage',
     sounds: tournament.sounds ?? ({} as SoundSettings),
     projector_background_id: tournament.projectorBackgroundId ?? null,
+    projector: { layout: tournament.projectorLayout },
     created_at: tournament.createdAt,
   };
 }

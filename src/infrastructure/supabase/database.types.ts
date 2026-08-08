@@ -2,9 +2,19 @@ import type {
   BlindLevel,
   CurrencyUnit,
   PayoutUnit,
+  ProjectorLayout,
   SoundSettings,
   TournamentStatus,
 } from '@domain/entities';
+
+/**
+ * The `projector` jsonb bag. Every key is optional — rows written before a
+ * setting existed simply don't have it, and the repository supplies the
+ * default. Adding a setting here needs no migration.
+ */
+export interface ProjectorSettings {
+  layout?: ProjectorLayout;
+}
 
 /** The stored jsonb shape — some older rows may still have `percentage` instead of `value`; the repository maps both. */
 export interface RawPayoutTier {
@@ -47,6 +57,7 @@ export interface Database {
           sounds: SoundSettings;
           join_code: string;
           projector_background_id: string | null;
+          projector: ProjectorSettings;
           created_at: string;
           updated_at: string;
         };

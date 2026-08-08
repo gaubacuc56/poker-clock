@@ -172,6 +172,38 @@
   color: var(--color-accent-lift);
 }
 
+/*
+ * Projector tokens. Deliberately a separate set from the app's: the TV output
+ * is its own surface and does not follow the operator's light/dark choice, so
+ * these live on `.pj` (set by ProjectorView) rather than on a theme selector.
+ * Every projector layout draws from these — never a raw hex.
+ *
+ * The handoff also ships a light `--pj-*` set; if the projector ever gets its
+ * own appearance switch, it goes here as a second block.
+ */
+.pj {
+  --pj-img: 0.34;
+  --pj-scrim: radial-gradient(
+    90% 70% at 50% 8%,
+    rgb(245 197 66 / 0.16),
+    rgb(12 10 6 / 0.72) 46%,
+    rgb(12 10 6 / 0.95) 78%
+  );
+  --pj-ink: #f7f3e7;
+  --pj-dim: #cbc1a9;
+  --pj-faint: #a79d85;
+  --pj-hair: rgb(247 243 231 / 0.1);
+  --pj-hair-2: rgb(247 243 231 / 0.22);
+  --pj-gold: #f5c542;
+  --pj-gold-soft: rgb(245 197 66 / 0.5);
+  --pj-gold-dim: rgb(245 197 66 / 0.3);
+  --pj-panel: rgb(247 243 231 / 0.05);
+  --pj-panel-2: rgb(247 243 231 / 0.09);
+  --pj-glow: 0 0 1.6cqw rgb(245 197 66 / 0.35);
+  --pj-card: linear-gradient(rgb(33 29 20 / 0.94), rgb(16 14 9 / 0.86));
+  --pj-card-shadow: 0 1.2cqw 3cqw rgb(0 0 0 / 0.6);
+}
+
 @layer base {
   body {
     margin: 0;

@@ -12,6 +12,20 @@ export type TournamentStatus =
 /** A `currencies.code` value — the allowed set is database-controlled, not a fixed union. */
 export type CurrencyUnit = string;
 
+/**
+ * How the projector arranges the same tournament data. `classic` is the
+ * original three-column screen; the rest come from the design handoff.
+ */
+export type ProjectorLayout = 'classic' | 'ledger' | 'panel' | 'dial' | 'card';
+
+export const PROJECTOR_LAYOUTS: { id: ProjectorLayout; label: string; description: string }[] = [
+  { id: 'classic', label: 'Classic', description: 'Stats left, clock centre, payouts right' },
+  { id: 'ledger', label: 'Ledger', description: 'Gold brackets, draining level rail, level dots' },
+  { id: 'panel', label: 'Panel', description: 'Stat rows with the clock on a raised panel' },
+  { id: 'dial', label: 'Dial', description: 'Clock inside a draining ring' },
+  { id: 'card', label: 'Card', description: 'One floating card — best over a busy photo' },
+];
+
 export interface TournamentConfig {
   id: string;
   name: string;
@@ -51,6 +65,8 @@ export interface TournamentConfig {
   sounds?: SoundSettings;
   /** Object path in the Supabase Storage `media` bucket (e.g. `background/uuid-name.jpg`). Absent/empty = flat background, no image. */
   projectorBackgroundId?: string;
+  /** Which arrangement the TV draws. Absent = 'classic', the only layout before this shipped. */
+  projectorLayout?: ProjectorLayout;
   createdAt: string;
   status: TournamentStatus;
 }

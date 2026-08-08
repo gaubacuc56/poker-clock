@@ -26,10 +26,12 @@ import {
   type CurrencyUnit,
   type PayoutTier,
   type PayoutUnit,
+  type ProjectorLayout,
   type SoundId,
   type SoundSettings,
   type TournamentConfig,
 } from '@domain/entities';
+import ProjectorLayoutPicker from './sections/ProjectorLayoutPicker';
 import Field from './sections/Field';
 import Switch from './sections/Switch';
 import SoundField from './sections/SoundField';
@@ -50,6 +52,7 @@ interface DraftTournament {
   guaranteedPrizePool: string;
   sounds: SoundSettings;
   projectorBackgroundId: string;
+  projectorLayout: ProjectorLayout;
 }
 
 const SOUND_TRIGGERS: { key: keyof SoundSettings; label: string }[] = [
@@ -62,7 +65,7 @@ const SOUND_TRIGGERS: { key: keyof SoundSettings; label: string }[] = [
   { key: 'warning60s', label: 'Next level in 60s' },
 ];
 
-const STEPS = ['Basics', 'Stack', 'Blinds', 'Payouts', 'Sounds', 'Review'];
+const STEPS = ['Basics', 'Blinds', 'Payouts', 'Projector', 'Sounds', 'Review'];
 
 export default function SetupWizardPage() {
   const { id } = useParams();
@@ -90,6 +93,7 @@ export default function SetupWizardPage() {
     guaranteedPrizePool: '',
     sounds: { ...DEFAULT_SOUND_SETTINGS },
     projectorBackgroundId: 'default',
+    projectorLayout: 'classic',
   });
   const [customLevels, setCustomLevels] = useState<BlindLevel[]>([]);
   const [customTiers, setCustomTiers] = useState<PayoutTier[]>([]);
@@ -115,6 +119,7 @@ export default function SetupWizardPage() {
         : '',
       sounds: { ...DEFAULT_SOUND_SETTINGS, ...existing.sounds },
       projectorBackgroundId: existing.projectorBackgroundId || 'default',
+      projectorLayout: existing.projectorLayout ?? 'classic',
     });
     setPayoutUnit(existing.payoutUnit ?? 'percentage');
   }, [existing]);
@@ -183,7 +188,7 @@ export default function SetupWizardPage() {
 
   async function handleFinish() {
     if (rebuyAddOnPriceError) {
-      setStep(1);
+      setStep(0);
       return;
     }
     const tournament: TournamentConfig = {
@@ -212,6 +217,7 @@ export default function SetupWizardPage() {
       payoutUnit,
       sounds: draft.sounds,
       projectorBackgroundId: draft.projectorBackgroundId || undefined,
+      projectorLayout: draft.projectorLayout,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       status: existing?.status ?? 'setup',
     };
@@ -227,7 +233,7 @@ export default function SetupWizardPage() {
   // A payout total that doesn't match the guarantee is surfaced as a warning in
   // the editor, not a block — some tournaments intentionally pay out something
   // other than the advertised guarantee.
-  const canAdvance = step !== 1 || !rebuyAddOnPriceError;
+  const canAdvance = step !== 0 || !rebuyAddOnPriceError;
   const canSave = !rebuyAddOnPriceError;
 
   const selectedBackground = backgroundOptions.find(
@@ -321,48 +327,18 @@ export default function SetupWizardPage() {
       <div className="scroll felt px-4 pt-4 pb-6">
         <div className="content">
           {step === 0 && (
-            <div className="flex flex-col gap-3.5">
-              <Field label="Tournament name">
-                <input
-                  className="input h-[42px] text-[22px] text-fg-strong"
-                  value={draft.name}
-                  onChange={(e) => update('name', e.target.value)}
-                  placeholder="Friday Night Poker"
-                />
-              </Field>
-              <Field label="Projector background">
-                <select
-                  className="input"
-                  value={draft.projectorBackgroundId}
-                  onChange={(e) => update('projectorBackgroundId', e.target.value)}
-                >
-                  {backgroundOptions.map((background) => (
-                    <option key={background.id} value={background.id}>
-                      {background.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              {selectedBackground && (
-                <div className="relative aspect-video overflow-hidden rounded-2xl bg-chrome shadow-lift-sm">
-                  <img
-                    src={selectedBackground.path}
-                    alt="Projector background preview"
-                    className="size-full object-cover opacity-75"
-                  />
-                  <span className="absolute bottom-2.5 left-2.5 rounded-[10px] bg-black/70 px-2 py-[3px] text-[13px] tracking-[.14em] text-white uppercase">
-                    Live preview
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === 1 && (
             <>
-              {/* One field per row at every width — the wizard's stack step reads
+              {/* One field per row at every width — the basics step reads
                   top-to-bottom rather than wrapping into uneven columns. */}
               <div className="grid grid-cols-1 gap-3">
+                <Field label="Tournament name">
+                  <input
+                    className="input h-[42px] text-[22px] text-fg-strong"
+                    value={draft.name}
+                    onChange={(e) => update('name', e.target.value)}
+                    placeholder="Friday Night Poker"
+                  />
+                </Field>
                 <Field label="Currency / unit">
                   <select
                     className="input"
@@ -479,7 +455,7 @@ export default function SetupWizardPage() {
             </>
           )}
 
-          {step === 2 && (
+          {step === 1 && (
             <div className="flex flex-col gap-3.5">
               <BlindStructureImport
                 levels={customLevels}
@@ -490,7 +466,7 @@ export default function SetupWizardPage() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 2 && (
             <div className="flex flex-col gap-2.5">
               <p className="text-[16px] text-muted">
                 Customize the payout split — as a percentage of the pool, or as fixed{' '}
@@ -504,6 +480,41 @@ export default function SetupWizardPage() {
                 currency={draft.currency}
                 guaranteedPrizePoolCents={guaranteedPrizePoolCents}
               />
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="flex flex-col gap-3.5">
+              <Field label="Projector background">
+                <select
+                  className="input"
+                  value={draft.projectorBackgroundId}
+                  onChange={(e) => update('projectorBackgroundId', e.target.value)}
+                >
+                  {backgroundOptions.map((background) => (
+                    <option key={background.id} value={background.id}>
+                      {background.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <div>
+                <span className="field-label">Layout</span>
+                <ProjectorLayoutPicker
+                  value={draft.projectorLayout}
+                  onChange={(layout) => update('projectorLayout', layout)}
+                  tournamentName={draft.name}
+                  currency={draft.currency}
+                  buyIn={draft.buyIn}
+                  startingStack={draft.startingStack}
+                  entrantCount={draft.entrantCount}
+                  levels={customLevels}
+                  tiers={customTiers}
+                  payoutUnit={payoutUnit}
+                  backgroundPath={selectedBackground?.path}
+                />
+              </div>
             </div>
           )}
 

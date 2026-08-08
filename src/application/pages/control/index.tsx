@@ -567,6 +567,9 @@ export default function ControlPage() {
             totalStack={totalStack}
             avgStack={avgStack}
             nextBreakSeconds={nextBreakSeconds}
+            levelIndex={activeLevelIndex}
+            levelCount={structure.levels.length}
+            layout={tournament.projectorLayout}
           />
         </ProjectorCaptureFrame>
       )}

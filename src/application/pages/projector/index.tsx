@@ -151,6 +151,9 @@ export default function ProjectorPage() {
         totalStack={totalStack}
         avgStack={avgStack}
         nextBreakSeconds={nextBreakSeconds}
+        levelIndex={activeLevelIndex}
+        levelCount={structure?.levels.length ?? 0}
+        layout={tournament.projectorLayout}
       />
 
       {needsSoundUnlock && (
