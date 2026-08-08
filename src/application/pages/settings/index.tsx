@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuthStore } from '@composition/container';
+import { useAuthStore, useThemeStore } from '@composition/container';
 import Screen from '../../components/layout/Screen';
 import TopBar, { BackLink } from '../../components/layout/TopBar';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import { ChevronRightIcon, LogoutIcon } from '../../components/icons';
+import { ChevronRightIcon, LogoutIcon, MoonIcon, SunIcon } from '../../components/icons';
 
 const MENU = [
   { to: '/settings/profile', title: 'Profile', subtitle: 'Email and password' },
@@ -17,6 +17,10 @@ const MENU = [
 
 export default function SettingsPage() {
   const signOut = useAuthStore((state) => state.signOut);
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
+  const isDark = theme === 'dark';
+  const themeLabel = isDark ? 'Switch to light mode' : 'Switch to dark mode';
 
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -37,6 +41,15 @@ export default function SettingsPage() {
       <TopBar>
         <BackLink to="/" label="Back to dashboard" />
         <h1 className="text-[22px]">Settings</h1>
+        <button
+          type="button"
+          className="btn btn-icon btn-secondary ml-auto"
+          title={themeLabel}
+          aria-label={themeLabel}
+          onClick={() => setTheme(isDark ? 'light' : 'dark')}
+        >
+          {isDark ? <SunIcon className="size-[17px]" /> : <MoonIcon className="size-[17px]" />}
+        </button>
       </TopBar>
 
       <div className="scroll felt px-4 py-3.5">

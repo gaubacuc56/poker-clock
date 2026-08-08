@@ -220,7 +220,7 @@ export default function ControlPage() {
   const levelPillClass = isBreak
     ? "bg-break/10 text-break-text"
     : isFinished || isFinalLevel
-      ? "bg-accent/15 text-[#FFE59A]"
+      ? "bg-accent/15 text-accent-lift"
       : "";
 
   async function handleStart() {

@@ -93,7 +93,7 @@ export default function BackgroundsPage() {
                   </div>
                   <button
                     type="button"
-                    className="btn btn-icon absolute top-1.5 right-1.5 size-[30px] bg-black/80 text-coral"
+                    className="btn btn-icon absolute top-1.5 right-1.5 size-[30px] bg-base-deep/80 text-coral"
                     title={`Delete ${background.label}`}
                     aria-label={`Delete ${background.label}`}
                     onClick={() => setPendingDelete(background)}

@@ -55,7 +55,7 @@ export function BarTitle({ title, subtitle }: TitleProps) {
   return (
     <div className="min-w-0">
       <div
-        className={`engrave display truncate text-white ${subtitle ? 'text-[22px]' : 'text-[23px]'}`}
+        className={`engrave display truncate text-fg-strong ${subtitle ? 'text-[22px]' : 'text-[23px]'}`}
       >
         {title}
       </div>

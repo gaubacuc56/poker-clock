@@ -31,12 +31,11 @@ export default function AuthPage() {
           <div className="mb-[18px] flex flex-col items-center gap-2.5">
             <Brand className="size-[88px]" glow />
             <span className="text-center text-[13px] tracking-[.26em] uppercase text-muted">
-              Poker Clock · Tournament Clock
+              Poker Tournament Clock
             </span>
           </div>
 
           <h1 className="mb-[3px] text-[30px]">Sign in</h1>
-          <p className="mb-4 text-[16px] text-muted">Organizers only.</p>
 
           <label className="mb-2.5 block">
             <span className="field-label">Email</span>
@@ -70,8 +69,8 @@ export default function AuthPage() {
             {isSubmitting ? 'Signing in…' : 'Sign in'}
           </button>
 
-          <p className="mt-4 text-[14px] text-faint">
-            Accounts are created by the organizer. There is no self-service sign-up.
+          <p className="mt-4 text-[14px] text-faint text-center">
+            Accounts are created by the organizer.
           </p>
         </form>
       </div>

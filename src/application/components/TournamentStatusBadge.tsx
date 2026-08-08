@@ -2,11 +2,11 @@ import type { TournamentStatus } from '@domain/entities';
 
 /* The dot and the label share one colour, carried down as `currentColor`. */
 const STATUS_CONFIG: Record<TournamentStatus, { label: string; className: string }> = {
-  setup: { label: 'Setup', className: 'text-[#9C9482]' },
-  registering: { label: 'Registering', className: 'text-[#FF7A18]' },
-  running: { label: 'Running', className: 'text-[#5FD08A]' },
-  paused: { label: 'Paused', className: 'text-[#F5C542]' },
-  finished: { label: 'Finished', className: 'text-[#7FCBEA]' },
+  setup: { label: 'Setup', className: 'text-status-setup' },
+  registering: { label: 'Registering', className: 'text-status-registering' },
+  running: { label: 'Running', className: 'text-status-running' },
+  paused: { label: 'Paused', className: 'text-status-paused' },
+  finished: { label: 'Finished', className: 'text-status-finished' },
 };
 
 /**
@@ -22,7 +22,7 @@ export default function TournamentStatusBadge({ status }: { status: TournamentSt
         className={`size-2 shrink-0 rounded-full bg-current ${
           status === 'running'
             ? 'ring-3 ring-current/20'
-            : 'ring-1 ring-[#191510]/25'
+            : 'ring-1 ring-base/25'
         }`}
       />
       <span className="text-[12.5px] tracking-[.2em] uppercase">{label}</span>

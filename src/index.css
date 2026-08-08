@@ -23,7 +23,8 @@
   --color-surface: #211d14;
   --color-surface-2: #1b1810;
 
-  /* three text emphases */
+  /* three text emphases, plus the highest-contrast one for headline text */
+  --color-fg-strong: #ffffff;
   --color-fg: #f7f3e7;
   --color-muted: #cbc1a9;
   --color-faint: #a79d85;
@@ -46,12 +47,22 @@
   --color-coral-on: #2a0c06;
   --color-ember: #ff7a18;
 
+  /* tournament status dots: one hue per lifecycle state */
+  --color-status-setup: #9c9482;
+  --color-status-registering: #ff7a18;
+  --color-status-running: #5fd08a;
+  --color-status-paused: #f5c542;
+  --color-status-finished: #7fcbea;
+
   --radius-field: 14px;
   --radius-card: 20px;
 
-  --shadow-lift-sm: inset 0 1px 0 rgb(247 243 231 / 0.05), 0 1px 2px rgb(0 0 0 / 0.25);
-  --shadow-lift-md: inset 0 1px 0 rgb(247 243 231 / 0.06), 0 6px 16px rgb(0 0 0 / 0.28);
-  --shadow-lift-lg: inset 0 1px 0 rgb(247 243 231 / 0.07), 0 14px 34px rgb(0 0 0 / 0.4);
+  /* Indirect on purpose: Tailwind inlines a shadow token's literal value into
+     the utility, so pointing at another variable is what lets the light theme
+     swap them at runtime. The two levels are defined in `:root` below. */
+  --shadow-lift-sm: var(--lift-sm);
+  --shadow-lift-md: var(--lift-md);
+  --shadow-lift-lg: var(--lift-lg);
 }
 
 /* Gradients and insets can't live in `@theme` — Tailwind only namespaces
@@ -59,6 +70,10 @@
    consumed by the component classes below. */
 :root {
   color-scheme: dark;
+
+  --lift-sm: inset 0 1px 0 rgb(247 243 231 / 0.05), 0 1px 2px rgb(0 0 0 / 0.25);
+  --lift-md: inset 0 1px 0 rgb(247 243 231 / 0.06), 0 6px 16px rgb(0 0 0 / 0.28);
+  --lift-lg: inset 0 1px 0 rgb(247 243 231 / 0.07), 0 14px 34px rgb(0 0 0 / 0.4);
 
   --slab: linear-gradient(180deg, #262014 0%, #19160e 100%);
   --rail: linear-gradient(180deg, #2a2415 0%, #16130b 100%);
@@ -78,6 +93,83 @@
   --chip-slate-face: #322c1f;
   --chip-slate-edge: #5b5238;
   --chip-slate-shade: #14110a;
+}
+
+/*
+ * Light theme. `@theme` above emits its tokens onto `:root`, so redefining the
+ * same variable names under `[data-theme='light']` re-points every generated
+ * utility (`text-muted`, `bg-surface`, `shadow-lift-md`, …) without touching a
+ * single class in the markup.
+ *
+ * The attribute is set on the `Screen` wrapper, not <html>, so it reaches the
+ * operator screens only — the projector renders outside `Screen` and keeps the
+ * base tokens whatever this is set to.
+ */
+[data-theme='light'] {
+  color-scheme: light;
+
+  --color-base: #f2ebda;
+  --color-base-deep: #e6dcc6;
+  --color-chrome: #ede5d1;
+  --color-surface: #fffcf3;
+  --color-surface-2: #faf5e8;
+
+  --color-fg-strong: #0d0a04;
+  --color-fg: #201b11;
+  --color-muted: #57503f;
+  --color-faint: #6e6653;
+
+  --color-hair: rgb(32 27 17 / 0.12);
+  --color-line: rgb(32 27 17 / 0.2);
+  --color-hair-strong: rgb(32 27 17 / 0.34);
+
+  --color-accent: #e0a800;
+  --color-accent-lift: #a87a00;
+  --color-accent-on: #201b11;
+
+  --color-break: #17847c;
+  --color-break-text: #0f6e67;
+  --color-coral: #c63a28;
+  --color-coral-text: #a32a1a;
+  --color-coral-on: #fff5f2;
+  --color-ember: #e05a00;
+
+  /* Darkened so each status still reads against a light ticket. */
+  --color-status-setup: #6e6653;
+  --color-status-registering: #c24a00;
+  --color-status-running: #1d7a45;
+  --color-status-paused: #96690a;
+  --color-status-finished: #1f7ba6;
+
+  --lift-sm: 0 1px 2px rgb(32 27 17 / 0.08);
+  --lift-md: 0 4px 12px rgb(32 27 17 / 0.1);
+  --lift-lg: 0 12px 30px rgb(32 27 17 / 0.14);
+
+  --slab: linear-gradient(180deg, #fffdf6 0%, #f6efdf 100%);
+  --rail: linear-gradient(180deg, #fffdf6 0%, #f0e8d4 100%);
+  --rail-edge: inset 0 -1px 0 rgb(32 27 17 / 0.12), 0 6px 16px rgb(32 27 17 / 0.1);
+  --felt:
+    radial-gradient(70% 44% at 50% -6%, rgb(255 226 150 / 0.55), transparent 64%),
+    repeating-linear-gradient(48deg, rgb(32 27 17 / 0.018) 0 3px, rgb(255 255 255 / 0.02) 3px 6px),
+    radial-gradient(130% 95% at 50% 40%, #fbf6e9 0%, #f2ebda 58%, #e9e0ca 100%);
+  --plate-bg: linear-gradient(180deg, rgb(32 27 17 / 0.09), rgb(32 27 17 / 0.03));
+  --plate-edge: inset 0 1px 2px rgb(32 27 17 / 0.22), 0 1px 0 rgb(255 255 255 / 0.7);
+  --sunk: rgb(32 27 17 / 0.07);
+  --dock-bg: rgb(255 252 243 / 0.94);
+  --btn-soft: rgb(32 27 17 / 0.07);
+  --btn-soft-h: rgb(32 27 17 / 0.13);
+  --ticket: #fffdf5;
+  --ticket-h: #ffffff;
+  --chip-slate-face: #e3dac2;
+  --chip-slate-edge: #fffbf0;
+  --chip-slate-shade: #b6ab8d;
+}
+
+/* Gold is a fill colour, not a text colour, once the background is light: every
+   accent-coloured *label* steps down to the darker gold, while `bg-accent`
+   fills (primary buttons, active chips) keep the bright one. */
+[data-theme='light'] .text-accent {
+  color: var(--color-accent-lift);
 }
 
 @layer base {

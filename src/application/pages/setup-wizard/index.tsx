@@ -324,7 +324,7 @@ export default function SetupWizardPage() {
             <div className="flex flex-col gap-3.5">
               <Field label="Tournament name">
                 <input
-                  className="input h-[42px] text-[22px] text-white"
+                  className="input h-[42px] text-[22px] text-fg-strong"
                   value={draft.name}
                   onChange={(e) => update('name', e.target.value)}
                   placeholder="Friday Night Poker"
@@ -350,7 +350,7 @@ export default function SetupWizardPage() {
                     alt="Projector background preview"
                     className="size-full object-cover opacity-75"
                   />
-                  <span className="absolute bottom-2.5 left-2.5 rounded-[10px] bg-black/70 px-2 py-[3px] text-[13px] tracking-[.14em] uppercase">
+                  <span className="absolute bottom-2.5 left-2.5 rounded-[10px] bg-black/70 px-2 py-[3px] text-[13px] tracking-[.14em] text-white uppercase">
                     Live preview
                   </span>
                 </div>

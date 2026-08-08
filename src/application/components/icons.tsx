@@ -264,3 +264,20 @@ export function SpeakerOffIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function SunIcon({ className }: IconProps) {
+  return (
+    <svg {...outline(className)}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2.25M12 19.25v2.25M4.22 4.22l1.6 1.6M18.18 18.18l1.6 1.6M2.5 12h2.25M19.25 12h2.25M4.22 19.78l1.6-1.6M18.18 5.82l1.6-1.6" />
+    </svg>
+  );
+}
+
+export function MoonIcon({ className }: IconProps) {
+  return (
+    <svg {...outline(className)}>
+      <path d="M20.5 14.3A8.5 8.5 0 019.7 3.5a8.5 8.5 0 1010.8 10.8z" />
+    </svg>
+  );
+}
