@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { findTournamentByJoinCode } from '@composition/container';
-import Screen from '../../components/layout/Screen';
-import Brand from '../../components/layout/Brand';
+import Screen from '@application/components/template/Screen';
+import Brand from '@application/components/template/Brand';
 
 export default function ProjectorEntryPage() {
   const navigate = useNavigate();

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useAuthStore } from '@composition/container';
-import PasswordInput from '../../components/PasswordInput';
-import Screen from '../../components/layout/Screen';
-import Brand from '../../components/layout/Brand';
+import PasswordInput from '@application/components/ui/PasswordInput';
+import Screen from '@application/components/template/Screen';
+import Brand from '@application/components/template/Brand';
 
 export default function AuthPage() {
   const signIn = useAuthStore((state) => state.signIn);

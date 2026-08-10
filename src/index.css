@@ -202,6 +202,39 @@
   --pj-glow: 0 0 1.6cqw rgb(245 197 66 / 0.35);
   --pj-card: linear-gradient(rgb(33 29 20 / 0.94), rgb(16 14 9 / 0.86));
   --pj-card-shadow: 0 1.2cqw 3cqw rgb(0 0 0 / 0.6);
+
+  /*
+   * The classic layout — and the clock, stats and payout components it shares
+   * with the operator screens — is written in app utilities (`text-fg`,
+   * `text-muted`, `text-accent`) rather than `--pj-*`. On the projector page
+   * that is harmless, but the setup wizard renders a live `ProjectorView`
+   * inside `Screen`, so a light theme above it re-pointed those tokens to their
+   * dark-on-light values and the preview's text went near-black on the TV's
+   * black. Re-pinning the app tokens here makes `.pj` theme-proof wherever it
+   * is mounted, so the miniature keeps showing what the TV will actually show.
+   */
+  --color-fg-strong: #ffffff;
+  --color-fg: var(--pj-ink);
+  --color-muted: var(--pj-dim);
+  --color-faint: var(--pj-faint);
+  --color-hair: var(--pj-hair);
+  --color-line: rgb(247 243 231 / 0.18);
+  --color-hair-strong: rgb(247 243 231 / 0.3);
+  --color-accent: var(--pj-gold);
+  --color-accent-lift: #ffdb74;
+  --color-accent-on: #1b1503;
+  --color-break: #5cc9c1;
+  --color-break-text: #93e1db;
+  --color-coral: #ff6b5a;
+  --color-coral-text: #ffa79b;
+  --color-coral-on: #2a0c06;
+  --color-ember: #ff7a18;
+}
+
+/* Undoes the light theme's accent step-down inside the projector: same
+   specificity as the rule above, and later, so `.pj` wins. */
+.pj .text-accent {
+  color: var(--color-accent);
 }
 
 @layer base {

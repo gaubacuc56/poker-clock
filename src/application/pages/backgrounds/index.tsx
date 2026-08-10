@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useBackgroundStore } from '@composition/container';
 import type { Background } from '@domain/entities';
-import Screen from '../../components/layout/Screen';
-import TopBar, { BackLink } from '../../components/layout/TopBar';
-import ConfirmDialog from '../../components/ConfirmDialog';
-import Spinner from '../../components/Spinner';
-import { TrashIcon, UploadIcon } from '../../components/icons';
+import Screen from '@application/components/template/Screen';
+import TopBar from '@application/components/template/TopBar';
+import BackLink from '@application/components/template/TopBar/sections/BackLink';
+import ConfirmDialog from '@application/components/ui/ConfirmDialog';
+import Spinner from '@application/components/ui/Spinner';
+import { TrashIcon, UploadIcon } from '@application/components/ui/icons';
 
 export default function BackgroundsPage() {
   const backgrounds = useBackgroundStore((state) => state.backgrounds);

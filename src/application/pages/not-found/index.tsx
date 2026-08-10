@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import Screen from '../../components/layout/Screen';
+import Screen from '@application/components/template/Screen';
 
 export default function NotFoundPage() {
   return (

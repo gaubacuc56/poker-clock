@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useAuthStore, useToast } from '@composition/container';
-import Screen from '../../components/layout/Screen';
-import TopBar, { BackLink } from '../../components/layout/TopBar';
-import PasswordInput from '../../components/PasswordInput';
-import Toast from '../../components/Toast';
-import Spinner from '../../components/Spinner';
+import Screen from '@application/components/template/Screen';
+import TopBar from '@application/components/template/TopBar';
+import BackLink from '@application/components/template/TopBar/sections/BackLink';
+import PasswordInput from '@application/components/ui/PasswordInput';
+import Toast from '@application/components/ui/Toast';
+import Spinner from '@application/components/ui/Spinner';
 
 export default function ProfilePage() {
   const email = useAuthStore((state) => state.session?.email ?? '');

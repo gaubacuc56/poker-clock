@@ -2,14 +2,12 @@ import { formatNumber } from '@domain/rules/format';
 
 export default function CounterRow({
   label,
-  hint,
   value,
   min,
   max,
   onChange,
 }: {
   label: string;
-  hint: string;
   value: number;
   min: number;
   max?: number;
@@ -22,7 +20,6 @@ export default function CounterRow({
     <div className="flex items-center gap-[14px] border-b border-hair px-0.5 py-[18px]">
       <div className="min-w-0 flex-1">
         <div className="engrave display text-[24px]">{label}</div>
-        <div className="text-[14px] text-faint">{hint}</div>
       </div>
 
       <button

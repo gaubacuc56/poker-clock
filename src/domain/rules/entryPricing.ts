@@ -1,9 +1,4 @@
-import type { TournamentConfig } from '../entities';
-
-export interface EntryPriceLine {
-  label: string;
-  amountCents: number;
-}
+import type { EntryPriceLine, TournamentConfig } from '../entities';
 
 /** Buy-in is always shown; rebuy/add-on only appear when the tournament allows them, falling back to the buy-in price when their own price isn't set. */
 export function getEntryPriceLines(

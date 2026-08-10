@@ -17,7 +17,7 @@ import SettingsPage from './application/pages/settings';
 import ProfilePage from './application/pages/profile';
 import BackgroundsPage from './application/pages/backgrounds';
 import NotFoundPage from './application/pages/not-found';
-import Screen from './application/components/layout/Screen';
+import Screen from '@application/components/template/Screen';
 
 function App() {
   return (

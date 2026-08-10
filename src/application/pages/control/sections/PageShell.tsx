@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import Screen from '../../../components/layout/Screen';
+import Screen from '@application/components/template/Screen';
 
 /** Full-screen message state for the control route — loading, or no tournament. */
 export default function PageShell({ children }: { children: ReactNode }) {

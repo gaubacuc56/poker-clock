@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore, useThemeStore } from '@composition/container';
-import Screen from '../../components/layout/Screen';
-import TopBar, { BackLink } from '../../components/layout/TopBar';
-import ConfirmDialog from '../../components/ConfirmDialog';
-import { ChevronRightIcon, LogoutIcon, MoonIcon, SunIcon } from '../../components/icons';
+import Screen from '@application/components/template/Screen';
+import TopBar from '@application/components/template/TopBar';
+import BackLink from '@application/components/template/TopBar/sections/BackLink';
+import ConfirmDialog from '@application/components/ui/ConfirmDialog';
+import { ChevronRightIcon, LogoutIcon, MoonIcon, SunIcon } from '@application/components/ui/icons';
 
 const MENU = [
   { to: '/settings/profile', title: 'Profile', subtitle: 'Email and password' },
@@ -58,7 +59,7 @@ export default function SettingsPage() {
             <Link
               key={item.to}
               to={item.to}
-              className="btn w-full justify-start bg-surface px-3.5 py-3 text-left shadow-lift-sm"
+              className="btn w-full justify-start bg-surface px-5.5 py-3 text-left shadow-lift-sm"
             >
               <span className="flex-1">
                 <span className="block text-[20px]">{item.title}</span>

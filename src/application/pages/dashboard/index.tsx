@@ -4,12 +4,12 @@ import { useTournamentStore, useToast } from '@composition/container';
 import type { TournamentConfig } from '@domain/entities';
 import { formatNumber } from '@domain/rules/format';
 import { copyProjectorLink } from '../../shared/projectorLink';
-import Screen from '../../components/layout/Screen';
-import TopBar from '../../components/layout/TopBar';
-import Brand from '../../components/layout/Brand';
-import Toast from '../../components/Toast';
-import ConfirmDialog from '../../components/ConfirmDialog';
-import TournamentStatusBadge from '../../components/TournamentStatusBadge';
+import Screen from '@application/components/template/Screen';
+import TopBar from '@application/components/template/TopBar';
+import Brand from '@application/components/template/Brand';
+import Toast from '@application/components/ui/Toast';
+import ConfirmDialog from '@application/components/ui/ConfirmDialog';
+import TournamentStatusBadge from '@application/components/shared/TournamentStatusBadge';
 import {
   ChevronRightIcon,
   ClockIcon,
@@ -17,7 +17,7 @@ import {
   PlusIcon,
   SettingsIcon,
   TrashIcon,
-} from '../../components/icons';
+} from '@application/components/ui/icons';
 
 export default function DashboardPage() {
   const tournaments = useTournamentStore((state) => state.tournaments);

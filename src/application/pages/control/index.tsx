@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   useTournamentStore,
@@ -10,37 +10,39 @@ import {
   resolveBackgroundPath,
 } from "@composition/container";
 import { formatChipRaceLabel, formatLevelLabel } from "@domain/rules/blindFormat";
-import {
-  getPlayLevelCount,
-  isClockFinished,
-  isFinalPlayLevel,
-} from "@domain/rules/blindProgression";
-import { calculatePayouts, hasPayouts } from "@domain/rules/payouts";
+import { isClockFinished } from "@domain/rules/blindProgression";
+import { getEntryPriceLines } from "@domain/rules/entryPricing";
 import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
 import { computeTournamentStats } from "@domain/rules/tournamentStats";
-import { getEntryPriceLines } from "@domain/rules/entryPricing";
-import { secondsToMinutes } from "@domain/rules/duration";
+import { buildProjectorData } from "@domain/rules/projectorData";
+import {
+  buildControlLabels,
+  formatAnte,
+  formatEntryPriceSummary,
+  hasAnte,
+} from "@domain/rules/controlLabels";
 import {
   finishTournament,
   startTournament,
   stopTournament,
 } from "@domain/rules/tournamentLifecycle";
 import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
+import { DEFAULT_CURRENCY } from "@domain/constants/tournament";
 import {
   formatMoney,
-  formatClock,
   formatCompactNumber,
   formatDurationHMS,
   formatNumber,
-  formatAmount,
 } from "@domain/rules/format";
-import { copyProjectorLink } from "../../shared/projectorLink";
-import Screen from "../../components/layout/Screen";
-import TopBar, { BackLink, BarTitle } from "../../components/layout/TopBar";
-import TournamentDock from "../../components/layout/TournamentDock";
-import Toast from "../../components/Toast";
-import ConfirmDialog from "../../components/ConfirmDialog";
-import ClockDial from "../../components/clock/ClockDial";
+import { copyProjectorLink } from "@application/shared/projectorLink";
+import Screen from "@application/components/template/Screen";
+import TopBar from "@application/components/template/TopBar";
+import BackLink from "@application/components/template/TopBar/sections/BackLink";
+import BarTitle from "@application/components/template/TopBar/sections/BarTitle";
+import TournamentDock from "@application/components/template/TournamentDock";
+import Toast from "@application/components/ui/Toast";
+import ConfirmDialog from "@application/components/ui/ConfirmDialog";
+import ClockDial from "@application/components/shared/ClockDial";
 import {
   CameraIcon,
   ChevronLeftIcon,
@@ -52,20 +54,14 @@ import {
   SpeakerIcon,
   SpeakerOffIcon,
   StopIcon,
-} from "../../components/icons";
-import type { BlindLevel, PayoutStructure } from "@domain/entities";
-import ProjectorView from "../../components/projector/ProjectorView";
+} from "@application/components/ui/icons";
+import ProjectorView from "@application/components/template/ProjectorView";
 import ProjectorCaptureFrame, {
   type ProjectorCaptureFrameHandle,
-} from "../../components/projector/ProjectorCaptureFrame";
+} from "@application/components/template/ProjectorCaptureFrame";
 import BlindStat from "./sections/BlindStat";
 import PageShell from "./sections/PageShell";
-
-/** Ante reads as "<BB> BBA" in big-blind-ante format, the number when there is one, else a dash. */
-function anteText(level: BlindLevel): string {
-  if (level.isBigBlindAnte) return `${formatCompactNumber(level.bigBlind)} BBA`;
-  return level.ante > 0 ? formatCompactNumber(level.ante) : "–";
-}
+import { LEVEL_PILL_CLASSES, TIME_ADJUSTMENTS } from "./constants";
 
 export default function ControlPage() {
   const { id } = useParams<{ id: string }>();
@@ -97,15 +93,8 @@ export default function ControlPage() {
     showToast(await copyProjectorLink(tournament.joinCode));
   }
 
-  const payoutStructure: PayoutStructure | undefined = useMemo(
-    () =>
-      tournament
-        ? { name: tournament.name, tiers: tournament.payoutTiers }
-        : undefined,
-    [tournament],
-  );
   const sounds = tournament?.sounds ?? DEFAULT_SOUND_SETTINGS;
-  const currency = tournament?.currency ?? "USD";
+  const currency = tournament?.currency ?? DEFAULT_CURRENCY;
 
   const {
     structure,
@@ -173,55 +162,20 @@ export default function ControlPage() {
   }
 
   const prizePool = calculatePrizePoolForTournament(tournament);
-  const payoutResults =
-    payoutStructure && hasPayouts(tournament.payoutTiers)
-      ? calculatePayouts(payoutStructure, prizePool, tournament.payoutUnit)
-      : [];
-  const entryPriceLines = getEntryPriceLines(tournament);
-  const priceLine = `${entryPriceLines
-    .map((line) => line.label)
-    .join("/")} : ${entryPriceLines
-    .map((line) => formatAmount(line.amountCents))
-    .join("/")}`;
+  const priceLine = formatEntryPriceSummary(getEntryPriceLines(tournament));
+
+  const { totalRegistered, remainingPlayers, buyInCount, rebuyCount, totalEntries, totalStack, avgStack } =
+    computeTournamentStats(tournament);
 
   const {
-    totalRegistered,
-    remainingPlayers,
-    buyInCount,
-    rebuyCount,
-    totalEntries,
-    totalStack,
-    avgStack,
-    startingStack,
-  } = computeTournamentStats(tournament);
-  const backgroundPath = resolveBackgroundPath(tournament.projectorBackgroundId);
-
-  const isBreak = currentLevel?.isBreak ?? false;
-  // Breaks are not levels — count and number only play levels.
-  const playLevelCount = getPlayLevelCount(structure);
-  const isFinalLevel = currentLevel
-    ? isFinalPlayLevel(structure, currentLevel)
-    : false;
-  // The tournament is over once the final level's clock has run out.
-  const isFinished = currentLevel
-    ? isClockFinished(structure, currentLevel, secondsRemaining)
-    : false;
-  const isLowTime = secondsRemaining <= 60 && secondsRemaining > 0 && !isBreak;
-
-  const levelLabel = !currentLevel
-    ? ""
-    : isBreak
-      ? formatLevelLabel(currentLevel)
-      : isFinished
-        ? "Finished"
-        : isFinalLevel
-          ? "Final Level"
-          : `Level ${currentLevel.level} of ${playLevelCount}`;
-  const levelPillClass = isBreak
-    ? "bg-break/10 text-break-text"
-    : isFinished || isFinalLevel
-      ? "bg-accent/15 text-accent-lift"
-      : "";
+    isBreak,
+    isFinished,
+    isLowTime,
+    levelState,
+    levelLabel,
+    clockAnnouncement,
+    clockCaption,
+  } = buildControlLabels(structure, currentLevel, secondsRemaining, clock?.isPaused ?? false);
 
   async function handleStart() {
     if (!id) return;
@@ -343,7 +297,9 @@ export default function ControlPage() {
             </div>
 
             <div className="flex flex-col items-center gap-[5px]">
-              <span className={`tag px-3 py-[5px] text-[18px] ${levelPillClass}`}>{levelLabel}</span>
+              <span className={`tag px-3 py-[5px] text-[18px] ${LEVEL_PILL_CLASSES[levelState]}`}>
+                {levelLabel}
+              </span>
               {isBreak && currentLevel.chipRace && (
                 <span className="text-[14px] tracking-[.16em] uppercase text-break">
                   {formatChipRaceLabel(currentLevel)}
@@ -359,16 +315,8 @@ export default function ControlPage() {
               isFinished={isFinished}
               isBreak={isBreak}
               isLowTime={isLowTime}
-              announce={`${levelLabel}, ${
-                isFinished ? "finished" : clock.isPaused ? "paused" : formatClock(secondsRemaining)
-              }`}
-              caption={
-                isFinished
-                  ? "tournament complete"
-                  : isBreak
-                    ? "break remaining"
-                    : `of ${secondsToMinutes(currentLevel.durationSeconds)} min`
-              }
+              announce={clockAnnouncement}
+              caption={clockCaption}
             />
 
             {!isBreak && (
@@ -382,8 +330,8 @@ export default function ControlPage() {
                 <span className="pb-1 text-[25px] text-faint">+</span>
                 <BlindStat
                   label="Ante"
-                  value={anteText(currentLevel)}
-                  tone={currentLevel.isBigBlindAnte || currentLevel.ante > 0 ? "accent" : "faint"}
+                  value={formatAnte(currentLevel)}
+                  tone={hasAnte(currentLevel) ? "accent" : "faint"}
                 />
               </div>
             )}
@@ -411,9 +359,9 @@ export default function ControlPage() {
                     <span className="pb-0.5 text-[22px] text-faint">+</span>
                     <BlindStat
                       label="Ante"
-                      value={anteText(nextLevel)}
+                      value={formatAnte(nextLevel)}
                       small
-                      tone={nextLevel.isBigBlindAnte || nextLevel.ante > 0 ? "accent" : "faint"}
+                      tone={hasAnte(nextLevel) ? "accent" : "faint"}
                     />
                   </div>
                 )}
@@ -465,27 +413,16 @@ export default function ControlPage() {
             </div>
 
             <div className="flex flex-wrap justify-center gap-1.5">
-              <button
-                type="button"
-                className="btn btn-secondary min-h-[38px]"
-                onClick={() => adjustTime(-60)}
-              >
-                −1m
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary min-h-[38px]"
-                onClick={() => adjustTime(60)}
-              >
-                +1m
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary min-h-[38px]"
-                onClick={() => adjustTime(300)}
-              >
-                +5m
-              </button>
+              {TIME_ADJUSTMENTS.map(({ label, seconds }) => (
+                <button
+                  key={label}
+                  type="button"
+                  className="btn btn-secondary min-h-[38px]"
+                  onClick={() => adjustTime(seconds)}
+                >
+                  {label}
+                </button>
+              ))}
               <button
                 type="button"
                 className="btn btn-secondary min-h-[38px]"
@@ -548,28 +485,20 @@ export default function ControlPage() {
       {currentLevel && (
         <ProjectorCaptureFrame ref={captureFrameRef}>
           <ProjectorView
-            tournamentName={tournament.name}
-            currency={currency}
-            backgroundPath={backgroundPath}
-            entryPriceLines={entryPriceLines}
-            startingStack={startingStack}
-            prizePool={prizePool}
-            payoutResults={payoutResults}
-            currentLevel={currentLevel}
-            nextLevel={nextLevel}
-            secondsRemaining={secondsRemaining}
-            isPaused={clock?.isPaused ?? false}
-            isFinished={isFinished}
-            remainingPlayers={remainingPlayers}
-            totalRegistered={totalRegistered}
-            totalEntries={totalEntries}
-            rebuyCount={rebuyCount}
-            totalStack={totalStack}
-            avgStack={avgStack}
-            nextBreakSeconds={nextBreakSeconds}
-            levelIndex={activeLevelIndex}
-            levelCount={structure.levels.length}
-            layout={tournament.projectorLayout}
+            {...buildProjectorData(
+              tournament,
+              {
+                structure,
+                currentLevel,
+                nextLevel,
+                secondsRemaining,
+                nextBreakSeconds,
+                activeLevelIndex,
+                isPaused: clock?.isPaused ?? false,
+                isFinished,
+              },
+              resolveBackgroundPath(tournament.projectorBackgroundId),
+            )}
           />
         </ProjectorCaptureFrame>
       )}

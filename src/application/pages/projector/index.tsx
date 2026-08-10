@@ -9,17 +9,12 @@ import {
   primeSounds,
 } from "@composition/container";
 import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
-import { calculatePayouts, hasPayouts } from "@domain/rules/payouts";
-import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
-import { computeTournamentStats } from "@domain/rules/tournamentStats";
-import { getEntryPriceLines } from "@domain/rules/entryPricing";
+import { buildProjectorData } from "@domain/rules/projectorData";
 import { isTournamentFinished } from "@domain/rules/tournamentLifecycle";
-import ProjectorView from "../../components/projector/ProjectorView";
-import type { PayoutStructure, TournamentConfig } from "@domain/entities";
+import ProjectorView from "@application/components/template/ProjectorView";
+import type { TournamentConfig } from "@domain/entities";
 import Centered from "./sections/Centered";
-
-/** Live countdown state comes from Supabase Realtime; this just keeps slower-changing fields (player counts, prize pool) fresh. */
-const REFRESH_INTERVAL_MS = 8000;
+import { REFRESH_INTERVAL_MS } from "./constants";
 
 export default function ProjectorPage() {
   const { code } = useParams<{ code: string }>();
@@ -51,10 +46,6 @@ export default function ProjectorPage() {
   }, [code]);
 
   useClockSyncProjector(tournament?.id);
-
-  const payoutStructure: PayoutStructure | undefined = tournament
-    ? { name: tournament.name, tiers: tournament.payoutTiers }
-    : undefined;
 
   const {
     structure,
@@ -103,23 +94,6 @@ export default function ProjectorPage() {
     return <Centered>{tournament.name} — waiting for clock to start</Centered>;
   }
 
-  const prizePool = calculatePrizePoolForTournament(tournament);
-  const payoutResults =
-    payoutStructure && hasPayouts(tournament.payoutTiers)
-      ? calculatePayouts(payoutStructure, prizePool, tournament.payoutUnit)
-      : [];
-  const entryPriceLines = getEntryPriceLines(tournament);
-  const {
-    totalRegistered,
-    remainingPlayers,
-    rebuyCount,
-    totalEntries,
-    totalStack,
-    avgStack,
-    startingStack
-  } = computeTournamentStats(tournament);
-  const backgroundPath = resolveBackgroundPath(tournament.projectorBackgroundId);
-
   const isFinished = structure
     ? isTournamentFinished(
         tournament.status,
@@ -129,32 +103,24 @@ export default function ProjectorPage() {
       )
     : false;
 
+  const projectorData = buildProjectorData(
+    tournament,
+    {
+      structure,
+      currentLevel,
+      nextLevel,
+      secondsRemaining,
+      nextBreakSeconds,
+      activeLevelIndex,
+      isPaused: clock.isPaused,
+      isFinished,
+    },
+    resolveBackgroundPath(tournament.projectorBackgroundId),
+  );
+
   return (
     <div className="relative h-screen w-screen overflow-hidden">
-      <ProjectorView
-        tournamentName={tournament.name}
-        currency={tournament.currency ?? "USD"}
-        backgroundPath={backgroundPath}
-        entryPriceLines={entryPriceLines}
-        startingStack={startingStack}
-        prizePool={prizePool}
-        payoutResults={payoutResults}
-        currentLevel={currentLevel}
-        nextLevel={nextLevel}
-        secondsRemaining={secondsRemaining}
-        isPaused={clock.isPaused}
-        isFinished={isFinished}
-        remainingPlayers={remainingPlayers}
-        totalRegistered={totalRegistered}
-        totalEntries={totalEntries}
-        rebuyCount={rebuyCount}
-        totalStack={totalStack}
-        avgStack={avgStack}
-        nextBreakSeconds={nextBreakSeconds}
-        levelIndex={activeLevelIndex}
-        levelCount={structure?.levels.length ?? 0}
-        layout={tournament.projectorLayout}
-      />
+      <ProjectorView {...projectorData} />
 
       {needsSoundUnlock && (
         <button

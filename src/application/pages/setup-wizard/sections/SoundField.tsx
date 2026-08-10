@@ -1,6 +1,6 @@
 import { playSound } from '@composition/container';
 import { SOUND_OPTIONS, type SoundId } from '@domain/entities';
-import { PlayIcon } from '../../../components/icons';
+import { PlayIcon } from '@application/components/ui/icons';
 
 export default function SoundField({
   label,
