@@ -51,7 +51,7 @@ export default function BlindStructureImport({
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-5  rounded-2xl bg-surface-2 px-3 py-5 shadow-lift-sm">
-        <div className="flex gap-3 w-full">
+        <div className="flex flex-col sm:flex-row gap-3 w-full">
           <button
             type="button"
             className="btn btn-secondary"
