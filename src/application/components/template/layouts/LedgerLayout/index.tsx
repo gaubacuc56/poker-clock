@@ -4,6 +4,7 @@ import { pu } from '@application/shared/projectorScale';
 import ClubLogo from '@application/components/shared/ClubLogo';
 import FitToHeight from '@application/components/shared/FitToHeight';
 import { buildProjectorScreen } from '../projectorScreen';
+import { CENTRE_HEADING_WIDTH, clockFontSize } from '../constants';
 import Blind from './sections/Blind';
 import LevelDots from './sections/LevelDots';
 import {
@@ -30,7 +31,7 @@ import {
  */
 export default function LedgerLayout(props: ProjectorData) {
   const m = buildProjectorScreen(props);
-  const { tournamentName, currency, prizePool, isFinished = false } = props;
+  const { tournamentName, currency, prizePool } = props;
 
   const bracket = `1px solid var(--pj-gold-soft)`;
   const corner = { position: 'absolute', width: pu(4), height: pu(4) } as const;
@@ -63,7 +64,9 @@ export default function LedgerLayout(props: ProjectorData) {
       <div
         className="absolute inset-0 grid"
         style={{
-          gridTemplateColumns: 'minmax(0,26fr) minmax(0,48fr) minmax(0,26fr)',
+          // The centre track is floored at its own min-content so the price
+          // line can stay on one row; the side tracks yield what it needs.
+          gridTemplateColumns: 'minmax(0,26fr) minmax(min-content,48fr) minmax(0,26fr)',
           // The single row is pinned to the frame's height. Left as `auto` it
           // grows to whatever the tallest column needs, and because every
           // column centres its own content, a long prize pool or a deep payout
@@ -112,17 +115,15 @@ export default function LedgerLayout(props: ProjectorData) {
           </div>
         </div>
 
-        <div
-          className="flex min-h-0 min-w-0 max-w-full flex-col items-center justify-center"
-        >
+        <div className="flex min-h-0 flex-col items-center justify-center">
           <div
-            className="display max-w-full truncate text-center"
+            className={`display truncate text-center ${CENTRE_HEADING_WIDTH}`}
             style={{ fontSize: pu(TITLE_SIZE), fontWeight: 600, letterSpacing: '-.01em' }}
           >
             {tournamentName}
           </div>
           <div
-            className="flex max-w-full flex-wrap justify-center"
+            className="flex justify-center whitespace-nowrap"
             style={{
               gap: pu(1.6),
               marginTop: pu(1),
@@ -190,7 +191,12 @@ export default function LedgerLayout(props: ProjectorData) {
               key={m.levelKey}
               className="display tabular-nums whitespace-nowrap"
               style={{
-                fontSize: pu(isFinished ? FINISHED_CLOCK_SIZE : CLOCK_SIZE),
+                fontSize: pu(
+                  clockFontSize(m.clockStatus, {
+                    running: CLOCK_SIZE,
+                    finished: FINISHED_CLOCK_SIZE,
+                  }),
+                ),
                 fontWeight: 600,
                 lineHeight: 1,
                 letterSpacing: CLOCK_TRACKING,

@@ -4,6 +4,7 @@ import { pu } from '@application/shared/projectorScale';
 import ClubLogo from '@application/components/shared/ClubLogo';
 import FitToHeight from '@application/components/shared/FitToHeight';
 import { buildProjectorScreen } from '../projectorScreen';
+import { CENTRE_HEADING_WIDTH, clockFontSize } from '../constants';
 import {
   PRICE_LINE_SIZE,
   NEXT_SIZE,
@@ -32,13 +33,15 @@ import {
  */
 export default function DialLayout(props: ProjectorData) {
   const m = buildProjectorScreen(props);
-  const { tournamentName, currency, prizePool, isFinished = false } = props;
+  const { tournamentName, currency, prizePool } = props;
 
   return (
     <div
       className="absolute inset-0 grid"
       style={{
-        gridTemplateColumns: 'minmax(0,25fr) minmax(0,50fr) minmax(0,25fr)',
+        // The centre track is floored at its own min-content so the price line
+        // can stay on one row; the side tracks yield what it needs.
+        gridTemplateColumns: 'minmax(0,25fr) minmax(min-content,50fr) minmax(0,25fr)',
         gridTemplateRows: 'minmax(0,1fr)',
         alignItems: 'stretch',
         // Shallower top and bottom than the other layouts: the ring is the one
@@ -87,15 +90,15 @@ export default function DialLayout(props: ProjectorData) {
         </div>
       </div>
 
-      <div className="flex min-h-0 min-w-0 flex-col items-center justify-center overflow-hidden">
+      <div className="flex min-h-0 flex-col items-center justify-center overflow-hidden">
         <div
-          className="display max-w-full flex-none truncate text-center"
+          className={`display flex-none truncate text-center ${CENTRE_HEADING_WIDTH}`}
           style={{ fontSize: pu(TITLE_SIZE), fontWeight: 600, lineHeight: 1.15, letterSpacing: '-.01em' }}
         >
           {tournamentName}
         </div>
         <div
-          className="flex max-w-full flex-none flex-wrap justify-center"
+          className="flex flex-none justify-center whitespace-nowrap"
           style={{
             gap: pu(1.4),
             marginTop: pu(0.3),
@@ -122,91 +125,108 @@ export default function DialLayout(props: ProjectorData) {
           </div>
         )}
 
+        {/* The ring is the one element in this column with any slack, so it is
+            what gives when the column runs out of height: it takes whatever the
+            lines above and below leave it, up to its design size. An extra
+            announcement line then costs the dial a little diameter instead of
+            pushing the next-up line off the bottom of the screen — and with no
+            extra line it is capped at DIAL_SIZE and nothing moves at all. */}
         <div
-          className="relative flex-none"
-          style={{ width: pu(DIAL_SIZE), height: pu(DIAL_SIZE), marginTop: pu(0.2) }}
+          className="flex min-h-0 w-full flex-1 items-center justify-center"
+          style={{ marginTop: pu(0.2) }}
         >
-          {/* The ring means "time is going", so none of it is drawn unless the
+          <div className="relative h-full" style={{ maxHeight: pu(DIAL_SIZE), aspectRatio: '1' }}>
+            {/* The ring means "time is going", so none of it is drawn unless the
               clock is actually counting. Its box stays either way, which is
               what keeps the countdown in the same place on the screen when a
               tournament is paused. */}
-          {m.isRunning && (
-            <svg
-              viewBox="0 0 320 320"
-              className="absolute inset-0 size-full"
-              style={{ transform: 'rotate(-90deg)' }}
-              aria-hidden="true"
-            >
-              <circle
-                cx="160"
-                cy="160"
-                r="140"
-                fill="none"
-                stroke="var(--pj-hair)"
-                strokeWidth="10"
-              />
-              <circle
-                cx="160"
-                cy="160"
-                r="140"
-                fill="none"
-                stroke="var(--pj-gold-dim)"
-                strokeWidth="2"
-                strokeDasharray="2 12.66"
-              />
-              <circle
-                cx="160"
-                cy="160"
-                r="140"
-                fill="none"
-                stroke={m.accentColor}
-                strokeWidth="10"
-                strokeLinecap="round"
-                strokeDasharray={TRACK_LENGTH}
-                strokeDashoffset={TRACK_LENGTH * m.elapsedFraction}
-                style={{ transition: 'stroke-dashoffset .5s linear' }}
-              />
-            </svg>
-          )}
-          <div
-            className="absolute inset-0 flex flex-col items-center justify-center"
-            style={{ gap: pu(0.4) }}
-          >
+            {m.isRunning && (
+              <svg
+                viewBox="0 0 320 320"
+                className="absolute inset-0 size-full"
+                style={{ transform: 'rotate(-90deg)' }}
+                aria-hidden="true"
+              >
+                <circle
+                  cx="160"
+                  cy="160"
+                  r="140"
+                  fill="none"
+                  stroke="var(--pj-hair)"
+                  strokeWidth="10"
+                />
+                <circle
+                  cx="160"
+                  cy="160"
+                  r="140"
+                  fill="none"
+                  stroke="var(--pj-gold-dim)"
+                  strokeWidth="2"
+                  strokeDasharray="2 12.66"
+                />
+                <circle
+                  cx="160"
+                  cy="160"
+                  r="140"
+                  fill="none"
+                  stroke={m.accentColor}
+                  strokeWidth="10"
+                  strokeLinecap="round"
+                  strokeDasharray={TRACK_LENGTH}
+                  strokeDashoffset={TRACK_LENGTH * m.elapsedFraction}
+                  style={{ transition: 'stroke-dashoffset .5s linear' }}
+                />
+              </svg>
+            )}
             <div
-              className="uppercase whitespace-nowrap"
-              style={{
-                fontSize: pu(LEVEL_LABEL_SIZE),
-                fontWeight: 700,
-                letterSpacing: '.16em',
-                color: m.levelColor,
-              }}
+              className="absolute inset-0 flex flex-col items-center justify-center"
+              style={{ gap: pu(0.4) }}
             >
-              {m.levelLabel}
-            </div>
-            {m.showClock && (
               <div
-                key={m.levelKey}
-                className="display tabular-nums whitespace-nowrap"
+                className="uppercase whitespace-nowrap"
                 style={{
-                  fontSize: pu(isFinished ? FINISHED_CLOCK_SIZE : clockSize(m.clockText)),
-                  fontWeight: 600,
-                  lineHeight: 1,
-                  letterSpacing: '-.04em',
-                  color: m.clockColor,
-                  animation: m.isLowTime ? 'cdpulse 1s ease-in-out infinite' : 'lvlin .5s ease',
+                  fontSize: pu(LEVEL_LABEL_SIZE),
+                  fontWeight: 700,
+                  letterSpacing: '.16em',
+                  color: m.levelColor,
                 }}
               >
-                {m.clockText}
+                {m.levelLabel}
               </div>
-            )}
-            {m.chipRaceLine && (
-              <div
-                className="uppercase"
-                style={{ fontSize: pu(CHIP_RACE_SIZE), letterSpacing: '.16em', color: 'var(--color-break)' }}
-              >
-                {m.chipRaceLine}
-              </div>
-            )}
+              {m.showClock && (
+                <div
+                  key={m.levelKey}
+                  className="display tabular-nums whitespace-nowrap"
+                  style={{
+                    fontSize: pu(
+                      clockFontSize(m.clockStatus, {
+                        running: clockSize(m.clockText),
+                        finished: FINISHED_CLOCK_SIZE,
+                      }),
+                    ),
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    letterSpacing: '-.04em',
+                    color: m.clockColor,
+                    animation: m.isLowTime ? 'cdpulse 1s ease-in-out infinite' : 'lvlin .5s ease',
+                  }}
+                >
+                  {m.clockText}
+                </div>
+              )}
+              {m.chipRaceLine && (
+                <div
+                  className="uppercase"
+                  style={{
+                    fontSize: pu(CHIP_RACE_SIZE),
+                    letterSpacing: '.16em',
+                    color: 'var(--color-break)',
+                  }}
+                >
+                  {m.chipRaceLine}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -240,10 +260,17 @@ export default function DialLayout(props: ProjectorData) {
         </div>
       </div>
 
-      <div className="flex h-full min-h-0 flex-col items-end justify-center overflow-hidden text-right" style={{marginLeft: pu(6)}}>
+      <div
+        className="flex h-full min-h-0 flex-col items-end justify-center overflow-hidden text-right"
+        style={{ marginLeft: pu(6) }}
+      >
         <div
           className="uppercase"
-          style={{ fontSize: pu(PRIZE_LABEL_SIZE), letterSpacing: '.2em', color: 'var(--pj-faint)' }}
+          style={{
+            fontSize: pu(PRIZE_LABEL_SIZE),
+            letterSpacing: '.2em',
+            color: 'var(--pj-faint)',
+          }}
         >
           Prize Pool
         </div>
@@ -277,7 +304,11 @@ export default function DialLayout(props: ProjectorData) {
               <span style={row.pip}>{row.place}</span>
               <span
                 className="display flex-1 tabular-nums"
-                style={{ fontSize: pu(PAYOUT_ROW_SIZE), lineHeight: pu(2.9), fontWeight: 600 }}
+                style={{
+                  fontSize: pu(PAYOUT_ROW_SIZE),
+                  lineHeight: pu(2.9),
+                  fontWeight: 600,
+                }}
               >
                 {row.value}
               </span>

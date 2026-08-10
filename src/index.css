@@ -410,6 +410,25 @@
     font-size: 18px;
     caret-color: var(--color-accent);
   }
+  /*
+   * Date and time inputs size themselves from the native picker on iOS, not
+   * from the box they were put in — an intrinsic width wide enough to overflow
+   * a phone-width card however `w-full` is set. Desktop responsive mode never
+   * shows it, because only the real control has that intrinsic size.
+   *
+   * `min-width: 0` is the load-bearing half: every one of these sits in a flex
+   * or grid child, whose `auto` minimum refuses to shrink below that intrinsic
+   * width. Dropping the native appearance stops iOS padding the control out
+   * again from the inside.
+   */
+  .input[type='date'],
+  .input[type='time'],
+  .input[type='datetime-local'] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+  }
   .input::placeholder {
     @apply text-faint;
   }

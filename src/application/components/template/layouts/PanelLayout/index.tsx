@@ -4,6 +4,7 @@ import { pu } from '@application/shared/projectorScale';
 import ClubLogo from '@application/components/shared/ClubLogo';
 import FitToHeight from '@application/components/shared/FitToHeight';
 import { buildProjectorScreen } from '../projectorScreen';
+import { CENTRE_HEADING_WIDTH, PLACE_INK, clockFontSize } from '../constants';
 import Cell from './sections/Cell';
 import {
   CHIP_RACE_SIZE,
@@ -33,13 +34,15 @@ import {
  */
 export default function PanelLayout(props: ProjectorData) {
   const m = buildProjectorScreen(props);
-  const { tournamentName, currency, prizePool, isFinished = false } = props;
+  const { tournamentName, currency, prizePool } = props;
 
   return (
     <div
       className="absolute inset-0 grid"
       style={{
-        gridTemplateColumns: 'minmax(0,24fr) minmax(0,52fr) minmax(0,24fr)',
+        // The centre track is floored at its own min-content so the price line
+        // can stay on one row; the side tracks yield what it needs.
+        gridTemplateColumns: 'minmax(0,24fr) minmax(min-content,52fr) minmax(0,24fr)',
         // The single row is pinned to the frame's height. Left as `auto` it
         // grows to whatever the tallest column needs, and because every column
         // centres its own content, a long prize pool or a deep payout list
@@ -93,15 +96,15 @@ export default function PanelLayout(props: ProjectorData) {
       <div className="flex min-h-0 flex-col justify-center" style={{ gap: pu(1.4) }}>
         {/* Name over its buy-in / re-buy / stack line, both centred over the
             card — the same heading ledger builds, at the same sizes. */}
-        <div className="flex min-w-0 flex-col items-center">
+        <div className="flex flex-col items-center">
           <div
-            className="display max-w-full truncate text-center"
+            className={`display truncate text-center ${CENTRE_HEADING_WIDTH}`}
             style={{ fontSize: pu(TITLE_SIZE), fontWeight: 600, letterSpacing: '-.01em' }}
           >
             {tournamentName}
           </div>
           <div
-            className="flex max-w-full flex-wrap justify-center"
+            className="flex justify-center whitespace-nowrap"
             style={{
               gap: pu(1.6),
               fontSize: pu(PRICE_LINE_SIZE),
@@ -174,7 +177,12 @@ export default function PanelLayout(props: ProjectorData) {
               key={m.levelKey}
               className="display tabular-nums whitespace-nowrap"
               style={{
-                fontSize: pu(isFinished ? FINISHED_CLOCK_SIZE : CLOCK_SIZE),
+                fontSize: pu(
+                  clockFontSize(m.clockStatus, {
+                    running: CLOCK_SIZE,
+                    finished: FINISHED_CLOCK_SIZE,
+                  }),
+                ),
                 fontWeight: 600,
                 lineHeight: 1,
                 letterSpacing: CLOCK_TRACKING,
@@ -247,7 +255,10 @@ export default function PanelLayout(props: ProjectorData) {
                 borderBottom: '1px solid var(--pj-hair)',
               }}
             >
-              <span className="tabular-nums" style={{ fontSize: pu(PAYOUT_ROW_SIZE), color: 'var(--pj-dim)' }}>
+              <span
+                className="tabular-nums"
+                style={{ fontSize: pu(PAYOUT_ROW_SIZE), color: PLACE_INK }}
+              >
                 {row.place}
               </span>
               <span

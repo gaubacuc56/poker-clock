@@ -26,7 +26,7 @@ export default function PayoutList({ results }: PayoutListProps) {
         const cash = formatPayoutCash(row);
         return (
           <p key={row.from} className="[overflow-wrap:anywhere] text-muted">
-            <span className="text-faint tabular-nums">{formatPayoutPlace(row)}.</span>{' '}
+            <span className="text-fg-strong tabular-nums">{formatPayoutPlace(row)}.</span>{' '}
             {cash && <span className="display font-bold tabular-nums text-fg">{cash}</span>}
             {row.note && (
               <span className="font-normal" style={{ fontSize: pu(NOTE_SIZE) }}>

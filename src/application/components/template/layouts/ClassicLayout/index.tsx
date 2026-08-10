@@ -6,8 +6,13 @@ import ClubLogo from '@application/components/shared/ClubLogo';
 import FitToHeight from '@application/components/shared/FitToHeight';
 import PayoutList from '@application/components/shared/PayoutList';
 import StatsPanel from '@application/components/shared/StatsPanel';
-import { CLASSIC_TONES } from '@application/components/shared/ClockDisplay/constants';
+import {
+  CLASSIC_TONES,
+  CLOCK_SIZE,
+  FINISHED_CLOCK_SIZE,
+} from '@application/components/shared/ClockDisplay/constants';
 import { buildProjectorScreen } from '../projectorScreen';
+import { CENTRE_HEADING_WIDTH, clockFontSize } from '../constants';
 import {
   HEADING_HEIGHT,
   HEADING_LINE_HEIGHT,
@@ -31,7 +36,6 @@ export default function ClassicLayout(props: ProjectorData) {
     prizePool,
     payoutResults,
     currentLevel,
-    isFinished = false,
   } = props;
 
   return (
@@ -55,38 +59,43 @@ export default function ClassicLayout(props: ProjectorData) {
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      {/* `min-w-min` rather than `min-w-0`: the column is floored at its own
+          min-content so the entry lines below stay on one row, and the payout
+          column beside it gives up the width. Stated explicitly because this
+          column also clips, and an `auto` minimum is zero on anything that
+          does. */}
+      <div className="flex min-w-min flex-1 flex-col overflow-hidden">
         <div
           className="flex max-w-full shrink-0 flex-col items-center"
           style={{ paddingInline: pu(1) }}
         >
           <h1
-            className={`max-w-full truncate text-center font-bold ${CLASSIC_TONES.normal.heading}`}
+            className={`truncate text-center font-bold ${CENTRE_HEADING_WIDTH} ${CLASSIC_TONES.normal.heading}`}
             style={{ fontSize: pu(TITLE_SIZE), lineHeight: HEADING_LINE_HEIGHT }}
           >
             {tournamentName}
           </h1>
-          {/* Wraps onto extra rows rather than overflowing the column when
-              there are enough entry lines to exceed its width. */}
+          {/* One row at any entry-line count: the column widens to hold them
+              rather than folding them onto a second row at a size the room can
+              no longer read across. */}
           <div
-            className="flex max-w-full flex-wrap justify-center"
+            className="flex flex-nowrap justify-center"
             style={{
               columnGap: pu(2.5),
-              rowGap: pu(0.3),
               lineHeight: HEADING_LINE_HEIGHT,
             }}
           >
             {entryPriceLines.map((line) => (
               <p
                 key={line.label}
-                className="max-w-full whitespace-nowrap text-center"
+                className="whitespace-nowrap text-center"
                 style={{ fontSize: pu(SUBTITLE_SIZE) }}
               >
                 {line.label}: {formatAmount(line.amountCents)}{' '}
               </p>
             ))}
             <p
-              className="max-w-full whitespace-nowrap text-center"
+              className="whitespace-nowrap text-center"
               style={{ fontSize: pu(SUBTITLE_SIZE) }}
             >
               Stack: {formatNumber(startingStack)}
@@ -107,25 +116,30 @@ export default function ClassicLayout(props: ProjectorData) {
             level={currentLevel}
             levelLabel={m.levelLabel}
             clockText={m.clockText}
+            clockSize={clockFontSize(m.clockStatus, {
+              running: CLOCK_SIZE,
+              finished: FINISHED_CLOCK_SIZE,
+            })}
             showClock={m.showClock}
             showBlinds={m.showBlinds}
             nextText={m.nextText}
             tone={m.tone}
-            isFinished={isFinished}
           />
         </div>
       </div>
 
       {/* Grows to fit long payout notes, but never past PAYOUT_MAX_WIDTH —
           beyond that the clock column would be squeezed. The minimum keeps
-          the clock centred even when there are no payouts at all. */}
+          the clock centred even when there are no payouts at all.
+          Shrinkable — this is the width the centre column takes when its entry
+          lines need more than their share, and PAYOUT_MIN_WIDTH is the floor. */}
       <div
         style={{
           width: 'max-content',
           minWidth: pu(PAYOUT_MIN_WIDTH),
           maxWidth: pu(PAYOUT_MAX_WIDTH),
         }}
-        className="flex shrink-0 flex-col overflow-hidden"
+        className="flex flex-col overflow-hidden"
       >
         <div className="shrink-0">
           <p

@@ -6,9 +6,7 @@ import { pu } from '@application/shared/projectorScale';
 import {
   CHIP_RACE_SIZE,
   CLASSIC_TONES,
-  CLOCK_SIZE,
   DIGIT_TRACKING,
-  FINISHED_CLOCK_SIZE,
   LEVEL_TEXT_SIZE,
   NEXT_TEXT_SIZE,
 } from './constants';
@@ -26,6 +24,9 @@ interface ClockDisplayProps {
   levelLabel: string;
   /** Already formatted, so every layout's clock reads the same in every state. */
   clockText: string;
+  /** Font size for the clock, in projector units — decided by the layout, which
+   *  is where the per-state sizes live. */
+  clockSize: number;
   showClock?: boolean;
   /** False on a break, and while registering — play hasn't opened, so no blinds
    *  are in force yet. */
@@ -42,11 +43,11 @@ export default function ClockDisplay({
   level,
   levelLabel,
   clockText,
+  clockSize,
   showClock = true,
   showBlinds,
   nextText,
   tone,
-  isFinished = false,
 }: ClockDisplayProps) {
   const tones = CLASSIC_TONES[tone];
 
@@ -72,7 +73,7 @@ export default function ClockDisplay({
         <p
           className={`display leading-none font-black tabular-nums [-webkit-text-stroke:0.02em_currentColor] ${tones.digits}`}
           style={{
-            fontSize: pu(isFinished ? FINISHED_CLOCK_SIZE : CLOCK_SIZE),
+            fontSize: pu(clockSize),
             letterSpacing: DIGIT_TRACKING,
             // Letter spacing is added after the last character too, which would
             // shove the centred line off to the left by that much.

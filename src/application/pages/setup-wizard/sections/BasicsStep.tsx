@@ -131,7 +131,7 @@ export default function BasicsStep({
         </Field>
         {scheduleLocked && (
           <p className="text-[16px] text-muted">
-            The tournament has already started — its schedule is now history.
+            The tournament has already started.
             Stop it to schedule another run.
           </p>
         )}
@@ -151,28 +151,31 @@ export default function BasicsStep({
         <div>
           <span className="field-label">Reg end</span>
           <div className="grid grid-cols-2 gap-3">
-            {/* Digits only, filtered on the way in rather than left to the
-                browser: a number input silently reports "" for something like
-                "1e", which would wipe the field as the organiser typed. */}
-            <input
-              type="text"
-              inputMode="numeric"
-              className="input tabular-nums"
-              placeholder="Level"
-              aria-label="Reg end level"
-              value={draft.lateRegLevel}
-              onChange={(e) => onChange('lateRegLevel', e.target.value.replace(/\D/g, ''))}
-            />
-            <input
-              type="time"
-              className="input tabular-nums"
-              aria-label="Reg end time of day"
-              value={draft.regEndTime}
-              onChange={(e) => onChange('regEndTime', e.target.value)}
-            />
+            <label className="block min-w-0">
+              <span className="mb-1 block text-[15px] text-faint">Level</span>
+              {/* Digits only, filtered on the way in rather than left to the
+                  browser: a number input silently reports "" for something like
+                  "1e", which would wipe the field as the organiser typed. */}
+              <input
+                type="text"
+                inputMode="numeric"
+                className="input tabular-nums"
+                placeholder="8"
+                value={draft.lateRegLevel}
+                onChange={(e) => onChange('lateRegLevel', e.target.value.replace(/\D/g, ''))}
+              />
+            </label>
+            <label className="block min-w-0">
+              <span className="mb-1 block text-[15px] text-faint">Time of day</span>
+              <input
+                type="time"
+                className="input tabular-nums"
+                value={draft.regEndTime}
+                onChange={(e) => onChange('regEndTime', e.target.value)}
+              />
+            </label>
           </div>
         </div>
-     
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3">
