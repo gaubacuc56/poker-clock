@@ -1,5 +1,11 @@
 import type { Currency } from '@domain/entities';
 import type { TournamentDraft } from '@domain/rules/tournamentDraft';
+import {
+  formatRegistrationEnd,
+  scheduleLocalToIso,
+  scheduleNowLocal,
+  validateSchedule,
+} from '@domain/rules/tournamentSchedule';
 import { WarningIcon } from '@application/components/ui/icons';
 import Field from './Field';
 import Switch from './Switch';
@@ -7,13 +13,37 @@ import Switch from './Switch';
 interface BasicsStepProps {
   draft: TournamentDraft;
   currencies: Currency[];
+  /** The clock has already been started — the schedule that led up to it is
+   *  history and can no longer be rewritten. */
+  scheduleLocked?: boolean;
   onChange: <K extends keyof TournamentDraft>(key: K, value: TournamentDraft[K]) => void;
 }
 
 /** Everything about the tournament that isn't a structure: name, prices, sizes. */
-export default function BasicsStep({ draft, currencies, onChange }: BasicsStepProps) {
+export default function BasicsStep({
+  draft,
+  currencies,
+  scheduleLocked = false,
+  onChange,
+}: BasicsStepProps) {
   const rebuyPriceValid = !draft.allowRebuy || Number(draft.rebuyPrice) > 0;
   const addOnPriceValid = !draft.allowAddOn || Number(draft.addOnPrice) > 0;
+  const scheduleError = validateSchedule({
+    registrationStartAt: scheduleLocalToIso(draft.registrationStart),
+    tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
+  });
+
+  // Neither picker offers a moment that has already gone, and the start can't be
+  // offered before the registration it has to follow. Both are UTC+7 wall-time
+  // strings in the input's own format, so they order as plain strings.
+  const earliest = scheduleNowLocal(Date.now());
+  const earliestStart =
+    draft.registrationStart > earliest ? draft.registrationStart : earliest;
+
+  const regEndPreview = formatRegistrationEnd(
+    Number(draft.lateRegLevel) || undefined,
+    draft.regEndTime,
+  );
 
   return (
     <>
@@ -73,14 +103,6 @@ export default function BasicsStep({ draft, currencies, onChange }: BasicsStepPr
             onChange={(e) => onChange('maxPlayersPerTable', e.target.value)}
           />
         </Field>
-        <Field label="Late reg closes after level">
-          <input
-            type="number"
-            className="input tabular-nums"
-            value={draft.lateRegLevel}
-            onChange={(e) => onChange('lateRegLevel', e.target.value)}
-          />
-        </Field>
         <Field label={`Guaranteed prize pool (${draft.currency}, optional)`}>
           <input
             type="number"
@@ -90,6 +112,73 @@ export default function BasicsStep({ draft, currencies, onChange }: BasicsStepPr
             onChange={(e) => onChange('guaranteedPrizePool', e.target.value)}
           />
         </Field>
+      </div>
+
+      <div className="card mt-4 gap-2.5">
+        <Field label="Registration start">
+          <input
+            type="datetime-local"
+            className={`input tabular-nums ${scheduleError ? 'input-bad' : ''}`}
+            min={earliest}
+            disabled={scheduleLocked}
+            value={draft.registrationStart}
+            onChange={(e) => onChange('registrationStart', e.target.value)}
+          />
+        </Field>
+        <Field label="Tournament start">
+          <input
+            type="datetime-local"
+            className={`input tabular-nums ${scheduleError ? 'input-bad' : ''}`}
+            min={earliestStart}
+            disabled={scheduleLocked}
+            value={draft.tournamentStart}
+            onChange={(e) => onChange('tournamentStart', e.target.value)}
+          />
+        </Field>
+        {scheduleLocked && (
+          <p className="text-[16px] text-muted">
+            The tournament has already started — its schedule is now history.
+            Stop it to schedule another run.
+          </p>
+        )}
+        {scheduleError && (
+          <p className="flex gap-1.5 text-[18px] text-coral">
+            <WarningIcon className="size-[15px] shrink-0" />
+            {scheduleError}
+          </p>
+        )}
+      </div>
+
+      {/* One heading over both halves: the level and the time are two readings
+          of the same moment, not two settings. The level is the same number the
+          app closes late registration on, so the sign on the TV and the rule it
+          enforces cannot disagree. */}
+      <div className="card mt-4 gap-2.5">
+        <div>
+          <span className="field-label">Reg end</span>
+          <div className="grid grid-cols-2 gap-3">
+            {/* Digits only, filtered on the way in rather than left to the
+                browser: a number input silently reports "" for something like
+                "1e", which would wipe the field as the organiser typed. */}
+            <input
+              type="text"
+              inputMode="numeric"
+              className="input tabular-nums"
+              placeholder="Level"
+              aria-label="Reg end level"
+              value={draft.lateRegLevel}
+              onChange={(e) => onChange('lateRegLevel', e.target.value.replace(/\D/g, ''))}
+            />
+            <input
+              type="time"
+              className="input tabular-nums"
+              aria-label="Reg end time of day"
+              value={draft.regEndTime}
+              onChange={(e) => onChange('regEndTime', e.target.value)}
+            />
+          </div>
+        </div>
+     
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3">

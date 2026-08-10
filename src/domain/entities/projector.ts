@@ -1,6 +1,7 @@
 import type { BlindLevel } from './blinds';
 import type { PayoutResult } from './payout';
 import type { ProjectorLayout } from './tournament';
+import type { RegistrationWindow } from '../rules/tournamentSchedule';
 
 /** One "Buy-in £20" / "Re-buy £20" entry on the projector's price line. */
 export interface EntryPriceLine {
@@ -22,6 +23,10 @@ export interface ProjectorData {
   backgroundPath: string | undefined;
   entryPriceLines: EntryPriceLine[];
   startingStack: number;
+  /** Last level late registration is open through — 0 when nothing is
+   *  announced — and the wall-clock time (`HH:mm`) it is expected at. */
+  lateRegLevel: number;
+  regEndTime?: string;
   prizePool: number;
   payoutResults: PayoutResult[];
   currentLevel: BlindLevel;
@@ -30,6 +35,7 @@ export interface ProjectorData {
   isPaused: boolean;
   /** The tournament has ended — the clock shows "FINISHED" instead of a countdown. */
   isFinished?: boolean;
+  registration?: RegistrationWindow;
   remainingPlayers: number;
   totalRegistered: number;
   totalEntries: number;

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_ENTRANT_COUNT, startTournament, stopTournament } from './tournamentLifecycle';
+import {
+  DEFAULT_ENTRANT_COUNT,
+  hasTournamentStarted,
+  startTournament,
+  stopTournament,
+} from './tournamentLifecycle';
 import type { TournamentConfig } from '../entities';
 
 function makeTournament(overrides: Partial<TournamentConfig> = {}): TournamentConfig {
@@ -32,6 +37,19 @@ describe('startTournament', () => {
   });
 });
 
+describe('hasTournamentStarted', () => {
+  it('counts every state the clock has run in', () => {
+    expect(hasTournamentStarted('running')).toBe(true);
+    expect(hasTournamentStarted('paused')).toBe(true);
+    expect(hasTournamentStarted('finished')).toBe(true);
+  });
+
+  it('does not count waiting to begin — registering included', () => {
+    expect(hasTournamentStarted('setup')).toBe(false);
+    expect(hasTournamentStarted('registering')).toBe(false);
+  });
+});
+
 describe('stopTournament', () => {
   it('resets status, entrant count, eliminated count, and rebuy count', () => {
     const tournament = makeTournament({
@@ -54,5 +72,17 @@ describe('stopTournament', () => {
   it('leaves add-on count untouched', () => {
     const tournament = makeTournament({ addOnCount: 9 });
     expect(stopTournament(tournament).addOnCount).toBe(9);
+  });
+
+  it('drops the schedule, so a live registration window cannot reopen', () => {
+    const tournament = makeTournament({
+      status: 'running',
+      registrationStartAt: '2026-08-10T12:00:00.000Z',
+      tournamentStartAt: '2026-08-10T13:00:00.000Z',
+    });
+    const stopped = stopTournament(tournament);
+
+    expect(stopped.registrationStartAt).toBeUndefined();
+    expect(stopped.tournamentStartAt).toBeUndefined();
   });
 });

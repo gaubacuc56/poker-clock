@@ -58,6 +58,9 @@ export interface Database {
           join_code: string;
           projector_background_id: string | null;
           projector: ProjectorSettings;
+          registration_start_at: string | null;
+          tournament_start_at: string | null;
+          reg_end_time: string | null;
           created_at: string;
           updated_at: string;
         };

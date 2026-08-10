@@ -31,7 +31,6 @@ export default function ClassicLayout(props: ProjectorData) {
     prizePool,
     payoutResults,
     currentLevel,
-    nextLevel,
     isFinished = false,
   } = props;
 
@@ -93,13 +92,24 @@ export default function ClassicLayout(props: ProjectorData) {
               Stack: {formatNumber(startingStack)}
             </p>
           </div>
+          {m.regEndLine && (
+            <p
+              className="max-w-full whitespace-nowrap text-center text-muted"
+              style={{ fontSize: pu(SUBTITLE_SIZE), lineHeight: HEADING_LINE_HEIGHT }}
+            >
+              {m.regEndLine}
+            </p>
+          )}
         </div>
 
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
           <ClockDisplay
             level={currentLevel}
-            nextLevel={nextLevel}
+            levelLabel={m.levelLabel}
             clockText={m.clockText}
+            showClock={m.showClock}
+            showBlinds={m.showBlinds}
+            nextText={m.nextText}
             tone={m.tone}
             isFinished={isFinished}
           />

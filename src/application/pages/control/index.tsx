@@ -23,9 +23,15 @@ import {
 } from "@domain/rules/controlLabels";
 import {
   finishTournament,
+  openRegistration,
   startTournament,
   stopTournament,
 } from "@domain/rules/tournamentLifecycle";
+import {
+  getRegistrationWindow,
+  getSchedulePhase,
+  type SchedulePhase,
+} from "@domain/rules/tournamentSchedule";
 import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
 import { DEFAULT_CURRENCY } from "@domain/constants/tournament";
 import {
@@ -86,6 +92,8 @@ export default function ControlPage() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [confirmingStop, setConfirmingStop] = useState(false);
   const captureFrameRef = useRef<ProjectorCaptureFrameHandle>(null);
+  // Null until the first tick has been seen — see the schedule effect below.
+  const lastSchedulePhase = useRef<SchedulePhase | null>(null);
   const { toastMessage, showToast } = useToast();
 
   async function handleCopyProjectorLink() {
@@ -142,6 +150,35 @@ export default function ControlPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsRemaining, currentLevel, structure, tournament?.status]);
 
+  // The schedule runs itself. Opening registration is written down so the
+  // dashboard and the TV both read it, and a start time that has arrived starts
+  // the clock with nobody touching this screen.
+  //
+  // Auto-start fires on the *crossing* into 'start-due', never on merely being
+  // in it. A schedule already in the past when this screen opens is history, not
+  // an instruction — which is what keeps a stopped tournament (back at 'setup',
+  // its past schedule intact) from starting itself all over again. The phase is
+  // recorded on every tick, clock or no clock, so the reference point survives a
+  // run and a stop.
+  useEffect(() => {
+    if (!tournament || !id) return;
+    const phase = getSchedulePhase(tournament, now);
+    const previousPhase = lastSchedulePhase.current;
+    lastSchedulePhase.current = phase;
+
+    if (clock) return;
+
+    if (phase === "start-due") {
+      if (previousPhase != null && previousPhase !== "start-due") {
+        start(id, Date.now());
+        void saveTournament(startTournament(tournament));
+      }
+    } else if (phase === "registering" && tournament.status === "setup") {
+      void saveTournament(openRegistration(tournament));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now]);
+
   if (!tournamentsLoaded) {
     return <PageShell>Loading…</PageShell>;
   }
@@ -160,6 +197,10 @@ export default function ControlPage() {
   if (!structure) {
     return <PageShell>Loading blind structure…</PageShell>;
   }
+
+  // Only meaningful before the clock exists — once it does, the level clock is
+  // the thing on screen.
+  const registration = clock ? undefined : getRegistrationWindow(tournament, now);
 
   const prizePool = calculatePrizePoolForTournament(tournament);
   const priceLine = formatEntryPriceSummary(getEntryPriceLines(tournament));
@@ -234,7 +275,25 @@ export default function ControlPage() {
       <div className="scroll felt flex flex-col">
         {!clock ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-[18px] px-5 py-10">
-            <p className="display text-[29px] text-muted">Ready when you are.</p>
+            {registration ? (
+              <>
+                <p className="kicker text-status-registering text-2xl font-bold">Registering</p>
+                {registration.secondsRemaining != null ? (
+                  <>
+                    <p className="engrave display text-[52px] tabular-nums">
+                      {formatDurationHMS(registration.secondsRemaining)}
+                    </p>
+                   
+                  </>
+                ) : (
+                  <p className="text-[18px] text-muted">
+                    Start the tournament when you're ready.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="display text-[29px] text-muted">Ready when you are.</p>
+            )}
             <button
               type="button"
               className="btn btn-primary h-14 px-[30px] text-[20px]"

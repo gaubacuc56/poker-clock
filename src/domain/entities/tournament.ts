@@ -48,6 +48,11 @@ export interface TournamentConfig {
   eliminatedCount: number;
   rebuyCount: number;
   addOnCount: number;
+  /**
+   * The last level late registration is open through. Also the level the
+   * projector's "Reg End" line announces — one number, so the sign on the TV
+   * and the rule the app enforces cannot disagree. 0 = nothing announced.
+   */
   lateRegLevel: number;
   allowRebuy: boolean;
   allowAddOn: boolean;
@@ -66,6 +71,15 @@ export interface TournamentConfig {
   projectorBackgroundId?: string;
   /** Which arrangement the TV draws. Absent = 'classic', the only layout before this shipped. */
   projectorLayout?: ProjectorLayout;
+  registrationStartAt?: string;
+  tournamentStartAt?: string;
+  /**
+   * The wall-clock time `lateRegLevel` is expected at, as `HH:mm` — the other
+   * half of the projector's "Reg End" announcement. A time of day with no date:
+   * the room reads it off the wall, and a tournament that runs late simply
+   * reaches the level late. Absent = the level is announced without a time.
+   */
+  regEndTime?: string;
   createdAt: string;
   status: TournamentStatus;
 }

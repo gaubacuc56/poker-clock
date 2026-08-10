@@ -37,7 +37,7 @@ erDiagram
         int eliminated_count "admin-controlled counter"
         int rebuy_count "admin-controlled counter"
         int add_on_count "admin-controlled counter"
-        int late_reg_level
+        int late_reg_level "closes late reg, and the level the Reg End line names"
         bool allow_rebuy
         bool allow_add_on
         bigint rebuy_price_cents "nullable, falls back to buy_in_cents"
@@ -45,6 +45,9 @@ erDiagram
         jsonb blind_levels "BlindLevel[]"
         jsonb payout_tiers "PayoutTier[] — { position, value, note? }"
         jsonb sounds "SoundSettings"
+        timestamptz registration_start_at "nullable, 0010 — doors open, picked in UTC+7"
+        timestamptz tournament_start_at "nullable, 0010 — clock auto-starts here"
+        text reg_end_time "nullable, 0011 — HH:mm wall clock, no date"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -99,5 +102,21 @@ The bounty feature (a flat amount per knockout) was removed entirely, including 
 The bucket is Public so the unauthenticated `/p/:join_code` projector view can render a background by URL. But Public only governs direct object downloads — **listing** and **uploading** always go through RLS on `storage.objects`, so `0007` adds `authenticated`-role `select`/`insert` policies scoped to the `media` bucket. Without them the Settings page's `list()` returns an empty array (no error), even though the objects exist and their public URLs resolve.
 
 ## Not shown
+
+## Scheduled start (`0010_tournament_schedule.sql`)
+
+`registration_start_at` and `tournament_start_at` are both nullable — an unscheduled tournament, the norm, has neither and is started by hand exactly as before. They are real `timestamptz` columns rather than keys in the `projector` jsonb bag because the clock starts itself off `tournament_start_at`: the value has to be something Postgres can type-check and compare, not presentation.
+
+Instants are stored in UTC; the organiser picks them in UTC+7 (`src/domain/rules/tournamentSchedule.ts` owns that conversion, and ICT's lack of DST is why a fixed offset is the whole rule). Once `registration_start_at` passes, the tournament's status moves to `registering` and the projector counts down to `tournament_start_at`; when that arrives the Control screen starts the clock. With no `tournament_start_at` set, registration stays open and the admin starts it manually.
+
+Both columns are exposed through `get_tournament_by_join_code`, which `0010` re-declares — the TV is the screen that has to show the countdown, and anything missing from that function is invisible to it.
+
+## Registration close announcement (`0011_registration_end.sql`)
+
+The projector prints `Reg End: Level 8 ( 20h30 )` under the buy-in/re-buy/stack line. Only the time is new here — the level is `late_reg_level`, which already exists and already means exactly this. Deliberately not a second column: the sign on the TV and the rule the app enforces (`isLateRegClosed`) are one number and cannot drift apart. `late_reg_level` of 0 announces nothing.
+
+`reg_end_time` is a bare time of day, stored as text in `HH:mm` rather than as a `time`: it's the exact string `<input type="time">` produces, and `time`'s `HH:MM:SS` would need trimming on every read for precision nobody enters. There is deliberately no date — the room reads the time off the wall, and a tournament running behind simply reaches the level later than the sign says.
+
+Either half may stand alone: level with no time reads `Reg End: Level 8`, time with no level reads `Reg End: 20h30`. `0011` re-declares `get_tournament_by_join_code` to expose the column, since the projector is the only screen this line is for.
 
 Row-level security policies, indexes, and the `set_updated_at` trigger are omitted here for readability — see the migration files themselves for those.

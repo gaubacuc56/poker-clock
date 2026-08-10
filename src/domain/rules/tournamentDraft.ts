@@ -14,6 +14,12 @@ import { normalizeBlindLevels } from './blindStructureEditor';
 import { formatNumber } from './format';
 import { fromCents, toCents } from './money';
 import { DEFAULT_ENTRANT_COUNT } from './tournamentLifecycle';
+import {
+  formatRegistrationEnd,
+  formatScheduleTime,
+  scheduleIsoToLocal,
+  scheduleLocalToIso,
+} from './tournamentSchedule';
 
 /**
  * A tournament part-way through being written down.
@@ -38,6 +44,11 @@ export interface TournamentDraft {
   entrantCount: string;
   lateRegLevel: string;
   guaranteedPrizePool: string;
+  registrationStart: string;
+  tournamentStart: string;
+  /** The `HH:mm` the room expects `lateRegLevel` at — the other half of the
+   *  projector's "Reg End" line. Blank when it isn't announced. */
+  regEndTime: string;
   sounds: SoundSettings;
   projectorBackgroundId: string;
   projectorLayout: ProjectorLayout;
@@ -62,6 +73,9 @@ export function createEmptyDraft(): TournamentDraft {
     entrantCount: String(DEFAULT_ENTRANT_COUNT),
     lateRegLevel: '4',
     guaranteedPrizePool: '',
+    registrationStart: '',
+    tournamentStart: '',
+    regEndTime: '',
     sounds: { ...DEFAULT_SOUND_SETTINGS },
     projectorBackgroundId: UNSET_BACKGROUND_ID,
     projectorLayout: 'classic',
@@ -88,6 +102,9 @@ export function draftFromTournament(tournament: TournamentConfig): TournamentDra
     guaranteedPrizePool: tournament.guaranteedPrizePool
       ? String(fromCents(tournament.guaranteedPrizePool))
       : '',
+    registrationStart: scheduleIsoToLocal(tournament.registrationStartAt),
+    tournamentStart: scheduleIsoToLocal(tournament.tournamentStartAt),
+    regEndTime: tournament.regEndTime ?? '',
     sounds: { ...DEFAULT_SOUND_SETTINGS, ...tournament.sounds },
     projectorBackgroundId: tournament.projectorBackgroundId || UNSET_BACKGROUND_ID,
     projectorLayout: tournament.projectorLayout ?? 'classic',
@@ -151,6 +168,9 @@ export function draftToTournament(
     sounds: draft.sounds,
     projectorBackgroundId: draft.projectorBackgroundId || undefined,
     projectorLayout: draft.projectorLayout,
+    registrationStartAt: scheduleLocalToIso(draft.registrationStart),
+    tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
+    regEndTime: draft.regEndTime || undefined,
     createdAt: existing?.createdAt ?? now(),
     status: existing?.status ?? 'setup',
   };
@@ -173,6 +193,9 @@ export function summarizeDraft(
 
   return [
     { label: 'Name', value: draft.name || UNTITLED_TOURNAMENT_NAME },
+    // Both schedule rows are dropped when unset rather than shown as "—": an
+    // unscheduled tournament has no schedule to review, not a blank one.
+    ...scheduleRows(draft),
     {
       label: 'Buy-in + fee',
       value: `${formatNumber(Number(draft.buyIn))} + ${formatNumber(Number(draft.fee))} ${draft.currency}`,
@@ -200,4 +223,16 @@ export function summarizeDraft(
       value: `${configuredSounds} of ${SOUND_TRIGGERS.length} sounds configured`,
     },
   ];
+}
+
+function scheduleRows(draft: TournamentDraft): DraftSummaryRow[] {
+  const rows: DraftSummaryRow[] = [];
+  const registration = formatScheduleTime(scheduleLocalToIso(draft.registrationStart));
+  const start = formatScheduleTime(scheduleLocalToIso(draft.tournamentStart));
+  if (registration) rows.push({ label: 'Registration opens', value: registration });
+  if (start) rows.push({ label: 'Tournament starts', value: start });
+
+  const regEnd = formatRegistrationEnd(Number(draft.lateRegLevel) || undefined, draft.regEndTime);
+  if (regEnd) rows.push({ label: 'Registration ends', value: regEnd });
+  return rows;
 }

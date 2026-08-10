@@ -107,6 +107,20 @@ export default function DialLayout(props: ProjectorData) {
         >
           {m.priceLine}
         </div>
+        {m.regEndLine && (
+          <div
+            className="max-w-full flex-none text-center"
+            style={{
+              marginTop: pu(0.3),
+              fontSize: pu(PRICE_LINE_SIZE),
+              lineHeight: 1.2,
+              color: 'var(--pj-dim)',
+              letterSpacing: '.06em',
+            }}
+          >
+            {m.regEndLine}
+          </div>
+        )}
 
         <div
           className="relative flex-none"
@@ -169,20 +183,22 @@ export default function DialLayout(props: ProjectorData) {
             >
               {m.levelLabel}
             </div>
-            <div
-              key={m.levelKey}
-              className="display tabular-nums whitespace-nowrap"
-              style={{
-                fontSize: pu(isFinished ? FINISHED_CLOCK_SIZE : clockSize(m.clockText)),
-                fontWeight: 600,
-                lineHeight: 1,
-                letterSpacing: '-.04em',
-                color: m.clockColor,
-                animation: m.isLowTime ? 'cdpulse 1s ease-in-out infinite' : 'lvlin .5s ease',
-              }}
-            >
-              {m.clockText}
-            </div>
+            {m.showClock && (
+              <div
+                key={m.levelKey}
+                className="display tabular-nums whitespace-nowrap"
+                style={{
+                  fontSize: pu(isFinished ? FINISHED_CLOCK_SIZE : clockSize(m.clockText)),
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  letterSpacing: '-.04em',
+                  color: m.clockColor,
+                  animation: m.isLowTime ? 'cdpulse 1s ease-in-out infinite' : 'lvlin .5s ease',
+                }}
+              >
+                {m.clockText}
+              </div>
+            )}
             {m.chipRaceLine && (
               <div
                 className="uppercase"

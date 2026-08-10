@@ -14,6 +14,7 @@ import {
   formatNumber,
 } from './format';
 import { formatPayoutCash, formatPayoutPlace, groupPayoutResults } from './payouts';
+import { formatRegistrationEnd } from './tournamentSchedule';
 
 /**
  * What the countdown is doing, as one value rather than a set of flags.
@@ -24,7 +25,10 @@ import { formatPayoutCash, formatPayoutPlace, groupPayoutResults } from './payou
  * hasn't been thought about yet, instead of slipping through a `!isPaused`
  * test as though the clock were still ticking.
  */
-export type ProjectorClockStatus = 'running' | 'paused' | 'finished';
+export type ProjectorClockStatus = 'registering' | 'running' | 'paused' | 'finished';
+
+/** What the level heading reads while the doors are open. */
+export const REGISTERING_LABEL = 'Registering';
 
 /**
  * Which of the three moods the screen is in. The layers above turn this into
@@ -70,6 +74,12 @@ export interface ProjectorModel {
   /** The countdown is actually ticking — the only state a progress indicator
    *  should be drawn in. Read this rather than negating a halt. */
   isRunning: boolean;
+  /**
+   * Whether there is a countdown to draw at all. False only for a tournament
+   * registering with no scheduled start: the doors are open, nothing is counting
+   * towards anything, and a clock reading 0:00 would be a lie.
+   */
+  showClock: boolean;
   /** 0…1 of the current level already elapsed — drives the rail and the dial. */
   elapsedFraction: number;
   levelLabel: string;
@@ -81,6 +91,9 @@ export interface ProjectorModel {
   blinds: ProjectorBlinds;
   blindsText: string;
   priceLine: string;
+  /** "Reg End: Level 8 ( 20h30 )", printed under the price line. Empty when the
+   *  tournament doesn't announce one. */
+  regEndLine: string;
   nextText: string;
   stats: ProjectorStat[];
   payouts: ProjectorPayoutRow[];
@@ -93,24 +106,43 @@ export function buildProjectorModel(data: ProjectorData): ProjectorModel {
     secondsRemaining,
     isPaused,
     isFinished = false,
+    registration,
     entryPriceLines,
     startingStack,
   } = data;
 
+  // Registration comes before a level clock exists, so it outranks every other
+  // state here — there is nothing yet for the tournament to be paused from.
+  const isRegistering = Boolean(registration) && !isFinished;
   const clockStatus: ProjectorClockStatus = isFinished
     ? 'finished'
-    : isPaused
-      ? 'paused'
-      : 'running';
+    : isRegistering
+      ? 'registering'
+      : isPaused
+        ? 'paused'
+        : 'running';
 
-  const isBreak = currentLevel.isBreak;
+  // A tournament counting down to its start has a countdown; one whose doors are
+  // simply open has nothing to count.
+  const registrationSeconds = isRegistering ? (registration?.secondsRemaining ?? null) : null;
+  const showClock = !isRegistering || registrationSeconds != null;
+
+  // Nothing about the blind structure applies until the clock starts, so a
+  // registering screen stays in the plain tone however short the countdown gets.
+  const isBreak = !isRegistering && currentLevel.isBreak;
   const isLowTime =
-    !isBreak && !isFinished && secondsRemaining > 0 && secondsRemaining <= LOW_TIME_SECONDS;
+    !isRegistering &&
+    !isBreak &&
+    !isFinished &&
+    secondsRemaining > 0 &&
+    secondsRemaining <= LOW_TIME_SECONDS;
 
   const duration = Math.max(1, currentLevel.durationSeconds);
-  const elapsedFraction = isFinished
-    ? 1
-    : Math.min(1, Math.max(0, 1 - secondsRemaining / duration));
+  const elapsedFraction = isRegistering
+    ? (registration?.elapsedFraction ?? 0)
+    : isFinished
+      ? 1
+      : Math.min(1, Math.max(0, 1 - secondsRemaining / duration));
 
   const { anteNumber, anteUnit } = anteParts(currentLevel);
 
@@ -120,15 +152,29 @@ export function buildProjectorModel(data: ProjectorData): ProjectorModel {
     isFinished,
     tone: isLowTime ? 'low' : isBreak ? 'break' : 'normal',
     clockStatus,
-    isRunning: clockStatus === 'running',
+    isRunning: isRegistering ? showClock : clockStatus === 'running',
+    showClock,
     elapsedFraction,
-    levelLabel: isFinished ? 'Finished' : formatLevelLabel(currentLevel),
+    levelLabel: isFinished
+      ? 'Finished'
+      : isRegistering
+        ? REGISTERING_LABEL
+        : formatLevelLabel(currentLevel),
     chipRaceLine: isBreak && currentLevel.chipRace ? formatChipRaceLabel(currentLevel) : '',
-    clockText: isFinished ? 'FINISHED' : isPaused ? 'PAUSED' : formatClock(secondsRemaining),
+    clockText: isFinished
+      ? 'FINISHED'
+      : isRegistering
+        ? (registrationSeconds != null ? formatClock(registrationSeconds) : '')
+        : isPaused
+          ? 'PAUSED'
+          : formatClock(secondsRemaining),
     levelKey: `${currentLevel.level}${currentLevel.isBreak ? 'b' : ''}${isFinished ? 'f' : ''}${
       isPaused ? 'p' : ''
-    }`,
-    showBlinds: !isBreak,
+    }${isRegistering ? 'r' : ''}`,
+    // Play hasn't opened yet, so there are no blinds in force — the opening
+    // level is announced as what's coming, on the "next" line, not as the
+    // current one.
+    showBlinds: !isRegistering && !isBreak,
     blinds: {
       sb: formatCompactNumber(currentLevel.smallBlind),
       bb: formatCompactNumber(currentLevel.bigBlind),
@@ -138,7 +184,10 @@ export function buildProjectorModel(data: ProjectorData): ProjectorModel {
     },
     blindsText: formatBlinds(currentLevel),
     priceLine: buildPriceLine(entryPriceLines, startingStack),
-    nextText: buildNextText(nextLevel),
+    regEndLine: formatRegistrationEnd(data.lateRegLevel, data.regEndTime),
+    // While registering, `currentLevel` is the level play will open on rather
+    // than one under way — which makes it precisely what "next" means here.
+    nextText: buildNextText(isRegistering ? currentLevel : nextLevel),
     stats: buildStats(data),
     payouts: buildPayouts(data.payoutResults),
   };

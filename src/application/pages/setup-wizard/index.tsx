@@ -7,6 +7,8 @@ import { createDefaultPayoutTiers } from '@domain/rules/presets/payoutStructures
 import { getEntryPriceLines } from '@domain/rules/entryPricing';
 import { toCents } from '@domain/rules/money';
 import { validateRebuyAddOnPrices } from '@domain/rules/tournamentValidation';
+import { scheduleLocalToIso, validateSchedule } from '@domain/rules/tournamentSchedule';
+import { hasTournamentStarted } from '@domain/rules/tournamentLifecycle';
 import {
   createEmptyDraft,
   draftFromTournament,
@@ -98,15 +100,20 @@ export default function SetupWizardPage() {
     setDraft((d) => ({ ...d, sounds: { ...d.sounds, [key]: value } }));
   }
 
-  const rebuyAddOnPriceError = validateRebuyAddOnPrices({
-    allowRebuy: draft.allowRebuy,
-    rebuyPrice: Number(draft.rebuyPrice),
-    allowAddOn: draft.allowAddOn,
-    addOnPrice: Number(draft.addOnPrice),
-  });
+  const basicsError =
+    validateRebuyAddOnPrices({
+      allowRebuy: draft.allowRebuy,
+      rebuyPrice: Number(draft.rebuyPrice),
+      allowAddOn: draft.allowAddOn,
+      addOnPrice: Number(draft.addOnPrice),
+    }) ??
+    validateSchedule({
+      registrationStartAt: scheduleLocalToIso(draft.registrationStart),
+      tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
+    });
 
   async function handleFinish() {
-    if (rebuyAddOnPriceError) {
+    if (basicsError) {
       setStep(STEP_INDEX.basics);
       return;
     }
@@ -129,7 +136,7 @@ export default function SetupWizardPage() {
   // A payout total that doesn't match the guarantee is surfaced as a warning in
   // the editor, not a block — some tournaments intentionally pay out something
   // other than the advertised guarantee.
-  const canAdvance = step !== STEP_INDEX.basics || !rebuyAddOnPriceError;
+  const canAdvance = step !== STEP_INDEX.basics || !basicsError;
 
   return (
     <Screen>
@@ -147,7 +154,12 @@ export default function SetupWizardPage() {
       <div className="scroll felt px-4 pt-4 pb-6">
         <div className="content">
           {step === STEP_INDEX.basics && (
-            <BasicsStep draft={draft} currencies={currencies} onChange={update} />
+            <BasicsStep
+              draft={draft}
+              currencies={currencies}
+              scheduleLocked={existing ? hasTournamentStarted(existing.status) : false}
+              onChange={update}
+            />
           )}
 
           {step === STEP_INDEX.blinds && (
@@ -212,7 +224,7 @@ export default function SetupWizardPage() {
         isEditing={Boolean(existing)}
         isSaving={isSaving}
         canAdvance={canAdvance}
-        canSave={!rebuyAddOnPriceError}
+        canSave={!basicsError}
         onBack={() => setStep((s) => Math.max(0, s - 1))}
         onNext={() => setStep((s) => Math.min(LAST_STEP, s + 1))}
         onFinish={handleFinish}

@@ -39,6 +39,9 @@ function rowToTournament(row: Omit<TournamentRow, 'owner_id'>): TournamentConfig
     sounds: row.sounds,
     projectorBackgroundId: row.projector_background_id ?? undefined,
     projectorLayout: row.projector?.layout ?? undefined,
+    registrationStartAt: row.registration_start_at ?? undefined,
+    tournamentStartAt: row.tournament_start_at ?? undefined,
+    regEndTime: row.reg_end_time ?? undefined,
     createdAt: row.created_at,
     status: row.status,
   };
@@ -75,6 +78,9 @@ function tournamentToRow(
     sounds: tournament.sounds ?? ({} as SoundSettings),
     projector_background_id: tournament.projectorBackgroundId ?? null,
     projector: { layout: tournament.projectorLayout },
+    registration_start_at: tournament.registrationStartAt ?? null,
+    tournament_start_at: tournament.tournamentStartAt ?? null,
+    reg_end_time: tournament.regEndTime ?? null,
     created_at: tournament.createdAt,
   };
 }

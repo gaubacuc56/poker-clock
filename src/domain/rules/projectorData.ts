@@ -11,6 +11,7 @@ import { getEntryPriceLines } from './entryPricing';
 import { calculatePayouts, hasPayouts } from './payouts';
 import { calculatePrizePoolForTournament } from './prizePool';
 import { computeTournamentStats } from './tournamentStats';
+import type { RegistrationWindow } from './tournamentSchedule';
 
 /**
  * The payout ladder for a tournament at its current prize pool, or an empty
@@ -35,6 +36,7 @@ export interface ProjectorClockSnapshot {
   activeLevelIndex: number;
   isPaused: boolean;
   isFinished: boolean;
+  registration?: RegistrationWindow;
 }
 
 /**
@@ -64,6 +66,8 @@ export function buildProjectorData(
     backgroundPath,
     entryPriceLines: getEntryPriceLines(tournament),
     startingStack: tournament.startingStack,
+    lateRegLevel: tournament.lateRegLevel,
+    regEndTime: tournament.regEndTime,
     prizePool,
     payoutResults: calculateTournamentPayouts(tournament, prizePool),
     currentLevel: clock.currentLevel,
@@ -71,6 +75,7 @@ export function buildProjectorData(
     secondsRemaining: clock.secondsRemaining,
     isPaused: clock.isPaused,
     isFinished: clock.isFinished,
+    registration: clock.registration,
     remainingPlayers,
     totalRegistered,
     totalEntries,

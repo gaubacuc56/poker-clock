@@ -20,6 +20,9 @@ export const PREVIEW_TOURNAMENT: Omit<ProjectorData, 'backgroundPath' | 'layout'
     { label: 'Re-buy', amountCents: toCents(100) },
   ],
   startingStack: 30_000,
+  // Both halves set, so the previews show the "Reg End" line at full length.
+  lateRegLevel: 8,
+  regEndTime: '20:30',
   prizePool: toCents(4_800),
   payoutResults: [
     { position: 1, percentage: 30, amount: toCents(1_440) },
