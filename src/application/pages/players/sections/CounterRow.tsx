@@ -17,29 +17,32 @@ export default function CounterRow({
   const canIncrement = max === undefined || value < max;
 
   return (
-    <div className="card flex items-center justify-between gap-4 p-3 sm:p-4">
-      <span className="text-sm font-medium sm:text-base">{label}</span>
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          className="btn-secondary h-11 w-11 rounded-full p-0 text-xl"
-          disabled={!canDecrement}
-          onClick={() => onChange(value - 1)}
-          aria-label={`Decrease ${label}`}
-        >
-          −
-        </button>
-        <span className="w-10 text-center text-xl font-bold tabular-nums">{formatNumber(value)}</span>
-        <button
-          type="button"
-          className="btn-secondary h-11 w-11 rounded-full p-0 text-xl"
-          disabled={!canIncrement}
-          onClick={() => onChange(value + 1)}
-          aria-label={`Increase ${label}`}
-        >
-          +
-        </button>
+    <div className="flex items-center gap-[14px] border-b border-hair px-0.5 py-[18px]">
+      <div className="min-w-0 flex-1">
+        <div className="engrave display text-[24px]">{label}</div>
       </div>
+
+      <button
+        type="button"
+        className="chip chip-slate size-[54px] text-[30px]"
+        disabled={!canDecrement}
+        onClick={() => onChange(value - 1)}
+        aria-label={`Decrease ${label}`}
+      >
+        −
+      </button>
+      <span className="engrave display min-w-14 text-center text-[35px] tabular-nums">
+        {formatNumber(value)}
+      </span>
+      <button
+        type="button"
+        className="chip chip-gold size-[54px] text-[30px]"
+        disabled={!canIncrement}
+        onClick={() => onChange(value + 1)}
+        aria-label={`Increase ${label}`}
+      >
+        +
+      </button>
     </div>
   );
 }

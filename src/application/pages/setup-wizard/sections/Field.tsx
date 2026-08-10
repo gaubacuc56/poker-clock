@@ -8,8 +8,8 @@ export default function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-sm text-themed-muted">{label}</span>
+    <label className="block min-w-0">
+      <span className="field-label">{label}</span>
       {children}
     </label>
   );

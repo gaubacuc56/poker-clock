@@ -2,22 +2,31 @@ export default function BlindStat({
   label,
   value,
   small,
-  valueClassName,
+  tone = 'default',
 }: {
   label: string;
   value: string;
+  /** The compact scale used inside the Next Level box. */
   small?: boolean;
-  valueClassName?: string;
+  tone?: 'default' | 'accent' | 'faint';
 }) {
   return (
     <div className="text-center">
       <div
-        className={`mb-1 uppercase tracking-wide text-themed-muted ${small ? 'text-xs' : 'text-sm sm:text-lg'}`}
+        className={`tracking-[.14em] uppercase ${
+          small ? 'text-[12px] text-faint' : 'text-[13px] text-muted'
+        }`}
       >
         {label}
       </div>
       <div
-        className={`font-bold ${small ? 'text-xl text-themed-secondary' : 'text-4xl sm:text-5xl md:text-6xl'} ${valueClassName ?? 'text-themed-primary'}`}
+        className={`display tabular-nums leading-[1.1] ${small ? 'text-[24px]' : 'text-[36px]'} ${
+          tone === 'accent'
+            ? 'text-accent'
+            : tone === 'faint'
+              ? 'text-faint'
+              : 'engrave'
+        }`}
       >
         {value}
       </div>

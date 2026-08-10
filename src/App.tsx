@@ -17,6 +17,7 @@ import SettingsPage from './application/pages/settings';
 import ProfilePage from './application/pages/profile';
 import BackgroundsPage from './application/pages/backgrounds';
 import NotFoundPage from './application/pages/not-found';
+import Screen from '@application/components/template/Screen';
 
 function App() {
   return (
@@ -49,10 +50,12 @@ function AuthenticatedApp() {
   }, [session, loadTournaments, loadCurrencies, loadBackgrounds]);
 
   if (!authIsLoaded) {
+    // Through `Screen` so this first paint is already in the chosen theme —
+    // `bg-themed-primary`/`text-themed-primary` were dead classes.
     return (
-      <div className="flex min-h-screen items-center justify-center bg-themed-primary text-themed-primary">
-        Loading…
-      </div>
+      <Screen>
+        <div className="scroll felt grid place-items-center text-muted">Loading…</div>
+      </Screen>
     );
   }
 

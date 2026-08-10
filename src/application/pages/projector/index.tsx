@@ -9,17 +9,14 @@ import {
   primeSounds,
 } from "@composition/container";
 import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
-import { calculatePayouts, hasPayouts } from "@domain/rules/payouts";
-import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
-import { computeTournamentStats } from "@domain/rules/tournamentStats";
-import { getEntryPriceLines } from "@domain/rules/entryPricing";
+import { buildProjectorData } from "@domain/rules/projectorData";
 import { isTournamentFinished } from "@domain/rules/tournamentLifecycle";
-import ProjectorView from "../../components/projector/ProjectorView";
-import type { PayoutStructure, TournamentConfig } from "@domain/entities";
+import { getRegistrationWindow } from "@domain/rules/tournamentSchedule";
+import ProjectorView from "@application/components/template/ProjectorView";
+import type { TournamentClock } from "@application/hooks/useTournamentClock";
+import type { ProjectorData, TournamentConfig } from "@domain/entities";
 import Centered from "./sections/Centered";
-
-/** Live countdown state comes from Supabase Realtime; this just keeps slower-changing fields (player counts, prize pool) fresh. */
-const REFRESH_INTERVAL_MS = 8000;
+import { REFRESH_INTERVAL_MS } from "./constants";
 
 export default function ProjectorPage() {
   const { code } = useParams<{ code: string }>();
@@ -52,19 +49,8 @@ export default function ProjectorPage() {
 
   useClockSyncProjector(tournament?.id);
 
-  const payoutStructure: PayoutStructure | undefined = tournament
-    ? { name: tournament.name, tiers: tournament.payoutTiers }
-    : undefined;
-
-  const {
-    structure,
-    clock,
-    currentLevel,
-    nextLevel,
-    secondsRemaining,
-    nextBreakSeconds,
-    activeLevelIndex,
-  } = useTournamentClock(tournament);
+  const live = useTournamentClock(tournament);
+  const { structure, currentLevel, secondsRemaining, activeLevelIndex } = live;
 
   const sounds = tournament?.sounds ?? DEFAULT_SOUND_SETTINGS;
 
@@ -99,76 +85,87 @@ export default function ProjectorPage() {
     return <Centered>No tournament found for this code.</Centered>;
   }
 
-  if (!clock || !currentLevel) {
+  const projectorData = buildScreen(tournament, live);
+
+  if (!projectorData) {
     return <Centered>{tournament.name} — waiting for clock to start</Centered>;
   }
 
-  const prizePool = calculatePrizePoolForTournament(tournament);
-  const payoutResults =
-    payoutStructure && hasPayouts(tournament.payoutTiers)
-      ? calculatePayouts(payoutStructure, prizePool, tournament.payoutUnit)
-      : [];
-  const entryPriceLines = getEntryPriceLines(tournament);
-  const {
-    totalRegistered,
-    remainingPlayers,
-    rebuyCount,
-    totalEntries,
-    totalStack,
-    avgStack,
-    startingStack
-  } = computeTournamentStats(tournament);
-  const backgroundPath = resolveBackgroundPath(tournament.projectorBackgroundId);
-
-  const isFinished = structure
-    ? isTournamentFinished(
-        tournament.status,
-        structure,
-        currentLevel,
-        secondsRemaining,
-      )
-    : false;
-
   return (
     <div className="relative h-screen w-screen overflow-hidden">
-      <ProjectorView
-        tournamentName={tournament.name}
-        currency={tournament.currency ?? "USD"}
-        backgroundPath={backgroundPath}
-        entryPriceLines={entryPriceLines}
-        startingStack={startingStack}
-        prizePool={prizePool}
-        payoutResults={payoutResults}
-        currentLevel={currentLevel}
-        nextLevel={nextLevel}
-        secondsRemaining={secondsRemaining}
-        isPaused={clock.isPaused}
-        isFinished={isFinished}
-        remainingPlayers={remainingPlayers}
-        totalRegistered={totalRegistered}
-        totalEntries={totalEntries}
-        rebuyCount={rebuyCount}
-        totalStack={totalStack}
-        avgStack={avgStack}
-        nextBreakSeconds={nextBreakSeconds}
-      />
+      <ProjectorView {...projectorData} />
 
       {needsSoundUnlock && (
         <button
           type="button"
           onClick={enableSound}
-          className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-slate-950/80 text-white backdrop-blur-sm"
+          className="absolute inset-0 z-50 flex cursor-pointer flex-col items-center justify-center gap-4 border-0 bg-base-deep/80 text-fg backdrop-blur-sm"
           aria-label="Tap to enable sound"
         >
-          <span style={{ fontSize: "clamp(3rem, 8vw, 6rem)" }}>🔊</span>
-          <span
-            className="font-semibold"
-            style={{ fontSize: "clamp(1.25rem, 3vw, 2.5rem)" }}
-          >
+          <span className="text-[clamp(3rem,8vw,6rem)]">🔊</span>
+          <span className="display font-semibold text-[clamp(1.25rem,3vw,2.5rem)]">
             Tap to enable sound
           </span>
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * What the TV is showing: the live screen once the clock is running, or — before
+ * it starts — the registration board, drawn from the level play will open on
+ * rather than one that is under way.
+ *
+ * The registration board is derived here from the tournament's own schedule
+ * rather than read off its persisted status, so the TV counts down on time even
+ * when nobody has the control screen open.
+ *
+ * Null when neither applies: no clock, and no registration window either.
+ */
+function buildScreen(
+  tournament: TournamentConfig,
+  live: TournamentClock,
+): ProjectorData | null {
+  const backgroundPath = resolveBackgroundPath(tournament.projectorBackgroundId);
+  const { structure, clock, currentLevel, secondsRemaining } = live;
+
+  if (clock && currentLevel) {
+    return buildProjectorData(
+      tournament,
+      {
+        structure,
+        currentLevel,
+        nextLevel: live.nextLevel,
+        secondsRemaining,
+        nextBreakSeconds: live.nextBreakSeconds,
+        activeLevelIndex: live.activeLevelIndex,
+        isPaused: clock.isPaused,
+        isFinished: structure
+          ? isTournamentFinished(tournament.status, structure, currentLevel, secondsRemaining)
+          : false,
+      },
+      backgroundPath,
+    );
+  }
+
+  const registration = getRegistrationWindow(tournament, live.now);
+  const openingLevel = tournament.blindLevels[0];
+  if (!registration || !openingLevel) return null;
+
+  return buildProjectorData(
+    tournament,
+    {
+      structure,
+      currentLevel: openingLevel,
+      nextLevel: undefined,
+      secondsRemaining: 0,
+      nextBreakSeconds: null,
+      activeLevelIndex: 0,
+      isPaused: false,
+      isFinished: false,
+      registration,
+    },
+    backgroundPath,
   );
 }

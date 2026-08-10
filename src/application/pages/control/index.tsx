@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   useTournamentStore,
@@ -10,52 +10,66 @@ import {
   resolveBackgroundPath,
 } from "@composition/container";
 import { formatChipRaceLabel, formatLevelLabel } from "@domain/rules/blindFormat";
-import {
-  getPlayLevelCount,
-  isClockFinished,
-  isFinalPlayLevel,
-} from "@domain/rules/blindProgression";
-import { calculatePayouts, hasPayouts } from "@domain/rules/payouts";
-import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
-import {
-  computeTournamentStats,
-} from "@domain/rules/tournamentStats";
+import { canAdjustTime, isClockFinished } from "@domain/rules/blindProgression";
 import { getEntryPriceLines } from "@domain/rules/entryPricing";
+import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
+import { computeTournamentStats } from "@domain/rules/tournamentStats";
+import { buildProjectorData } from "@domain/rules/projectorData";
+import {
+  buildControlLabels,
+  formatAnte,
+  formatEntryPriceSummary,
+  hasAnte,
+} from "@domain/rules/controlLabels";
 import {
   finishTournament,
+  isTournamentInPlay,
+  openRegistration,
   startTournament,
   stopTournament,
 } from "@domain/rules/tournamentLifecycle";
+import {
+  formatScheduleMoment,
+  getRegistrationWindow,
+  getSchedulePhase,
+  scheduleOccurrence,
+} from "@domain/rules/tournamentSchedule";
 import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
+import { DEFAULT_CURRENCY } from "@domain/constants/tournament";
 import {
   formatMoney,
-  formatClock,
   formatCompactNumber,
   formatDurationHMS,
   formatNumber,
-  formatAmount,
 } from "@domain/rules/format";
-import { copyProjectorLink } from "../../shared/projectorLink";
-import TournamentSidebar from "../../components/layout/TournamentSidebar";
-import PageHeader from "../../components/layout/PageHeader";
-import Toast from "../../components/Toast";
+import { copyProjectorLink } from "@application/shared/projectorLink";
+import Screen from "@application/components/template/Screen";
+import TopBar from "@application/components/template/TopBar";
+import BackLink from "@application/components/template/TopBar/sections/BackLink";
+import BarTitle from "@application/components/template/TopBar/sections/BarTitle";
+import TournamentDock from "@application/components/template/TournamentDock";
+import Toast from "@application/components/ui/Toast";
+import ConfirmDialog from "@application/components/ui/ConfirmDialog";
+import ClockDial from "@application/components/shared/ClockDial";
 import {
   CameraIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  LinkIcon,
   PauseIcon,
   PlayIcon,
-  ProjectorIcon,
   ResetIcon,
+  SpeakerIcon,
+  SpeakerOffIcon,
   StopIcon,
-} from "../../components/icons";
-import type { PayoutStructure } from "@domain/entities";
-import ProjectorView from "../../components/projector/ProjectorView";
+} from "@application/components/ui/icons";
+import ProjectorView from "@application/components/template/ProjectorView";
 import ProjectorCaptureFrame, {
   type ProjectorCaptureFrameHandle,
-} from "../../components/projector/ProjectorCaptureFrame";
+} from "@application/components/template/ProjectorCaptureFrame";
 import BlindStat from "./sections/BlindStat";
 import PageShell from "./sections/PageShell";
+import { LEVEL_PILL_CLASSES, TIME_ADJUSTMENTS } from "./constants";
 
 export default function ControlPage() {
   const { id } = useParams<{ id: string }>();
@@ -77,8 +91,8 @@ export default function ControlPage() {
   const toggleMute = useClockStore((state) => state.toggleMute);
 
   const { stop: stopClock } = useClockSyncControl(id);
-  const [showPayouts, setShowPayouts] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [confirmingStop, setConfirmingStop] = useState(false);
   const captureFrameRef = useRef<ProjectorCaptureFrameHandle>(null);
   const { toastMessage, showToast } = useToast();
 
@@ -87,19 +101,13 @@ export default function ControlPage() {
     showToast(await copyProjectorLink(tournament.joinCode));
   }
 
-  const payoutStructure: PayoutStructure | undefined = useMemo(
-    () =>
-      tournament
-        ? { name: tournament.name, tiers: tournament.payoutTiers }
-        : undefined,
-    [tournament],
-  );
   const sounds = tournament?.sounds ?? DEFAULT_SOUND_SETTINGS;
-  const currency = tournament?.currency ?? "USD";
+  const currency = tournament?.currency ?? DEFAULT_CURRENCY;
 
   const {
     structure,
     clock,
+    isClockDerived,
     currentLevel,
     nextLevel,
     secondsRemaining,
@@ -122,7 +130,7 @@ export default function ControlPage() {
   // triggers the level/break sounds. Progress within the new level is preserved
   // (not reset to full), so reopening control never rewinds the countdown.
   useEffect(() => {
-    if (!clock || !structure || !id) return;
+    if (!clock || isClockDerived || !structure || !id) return;
     if (!clock.isPaused && activeLevelIndex !== clock.currentLevelIndex) {
       advanceToActiveLevel(structure, now);
     }
@@ -131,17 +139,49 @@ export default function ControlPage() {
 
   // Once the final level's clock reaches zero the run is over — persist the
   // 'finished' status so it reflects everywhere (dashboard badge included).
-  // The status guard keeps this from re-firing on every subsequent tick.
+  //
+  // Only a run in play can finish, which is also what stops Reset from undoing
+  // itself: resetting writes 'setup' before the clock row is cleared, so for one
+  // render a spent clock sits beside a tournament that is no longer finished, and
+  // a looser guard read that as "finished again".
   useEffect(() => {
     if (!tournament || !structure || !currentLevel) return;
     if (
-      isClockFinished(structure, currentLevel, secondsRemaining) &&
-      tournament.status !== "finished"
+      isTournamentInPlay(tournament.status) &&
+      isClockFinished(structure, currentLevel, secondsRemaining)
     ) {
       void saveTournament(finishTournament(tournament));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsRemaining, currentLevel, structure, tournament?.status]);
+
+  // A scheduled tournament does not wait for this screen. Its clock is derived
+  // from the start time, so it is already running on the TV before anyone opens
+  // the app — which is the only way a scheduled start is any use.
+  //
+  // What is left for this screen is bookkeeping, and both halves are idempotent:
+  // adopt the derived clock into a real row, so the operator's own controls
+  // (pause, jump, adjust) have something to write to and the run survives a
+  // reload; and record the status the dashboard reads.
+  useEffect(() => {
+    if (!tournament || !id) return;
+
+    if (isClockDerived && clock) {
+      // Started at the scheduled instant, not now, so adopting it doesn't
+      // rewind the countdown the room has been watching.
+      start(id, clock.levelStartedAtEpochMs);
+      void saveTournament(startTournament(tournament));
+      return;
+    }
+    if (
+      !clock &&
+      tournament.status === "setup" &&
+      getSchedulePhase(tournament, now) === "registering"
+    ) {
+      void saveTournament(openRegistration(tournament));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now]);
 
   if (!tournamentsLoaded) {
     return <PageShell>Loading…</PageShell>;
@@ -151,7 +191,7 @@ export default function ControlPage() {
     return (
       <PageShell>
         <p>Tournament not found.</p>
-        <Link to="/" className="btn-secondary mt-4 inline-block">
+        <Link to="/" className="btn btn-secondary mt-4">
           Back to dashboard
         </Link>
       </PageShell>
@@ -162,36 +202,26 @@ export default function ControlPage() {
     return <PageShell>Loading blind structure…</PageShell>;
   }
 
+  const registration = clock ? undefined : getRegistrationWindow(tournament, now);
+  const upcoming = clock ? undefined : scheduleOccurrence(tournament, now);
+  const opensAt = formatScheduleMoment(upcoming?.registrationStartAt);
+  const startsAt = formatScheduleMoment(upcoming?.tournamentStartAt);
+
   const prizePool = calculatePrizePoolForTournament(tournament);
-  const payoutResults =
-    payoutStructure && hasPayouts(tournament.payoutTiers)
-      ? calculatePayouts(payoutStructure, prizePool, tournament.payoutUnit)
-      : [];
-  const entryPriceLines = getEntryPriceLines(tournament);
+  const priceLine = formatEntryPriceSummary(getEntryPriceLines(tournament));
+
+  const { totalRegistered, remainingPlayers, buyInCount, rebuyCount, totalEntries, totalStack, avgStack } =
+    computeTournamentStats(tournament);
 
   const {
-    totalRegistered,
-    remainingPlayers,
-    buyInCount,
-    rebuyCount,
-    totalEntries,
-    totalStack,
-    avgStack,
-    startingStack,
-  } = computeTournamentStats(tournament);
-  const backgroundPath = resolveBackgroundPath(tournament.projectorBackgroundId);
-
-  const isBreak = currentLevel?.isBreak ?? false;
-  // Breaks are not levels — count and number only play levels.
-  const playLevelCount = getPlayLevelCount(structure);
-  const isFinalLevel = currentLevel
-    ? isFinalPlayLevel(structure, currentLevel)
-    : false;
-  // The tournament is over once the final level's clock has run out.
-  const isFinished = currentLevel
-    ? isClockFinished(structure, currentLevel, secondsRemaining)
-    : false;
-  const isLowTime = secondsRemaining <= 60 && secondsRemaining > 0 && !isBreak;
+    isBreak,
+    isFinished,
+    isLowTime,
+    levelState,
+    levelLabel,
+    clockAnnouncement,
+    clockCaption,
+  } = buildControlLabels(structure, currentLevel, secondsRemaining, clock?.isPaused ?? false);
 
   async function handleStart() {
     if (!id) return;
@@ -199,16 +229,13 @@ export default function ControlPage() {
     await saveTournament(startTournament(tournament!));
   }
 
-  async function handleStop() {
-    if (!id) return;
-    const message = isFinished
-      ? "Reset this tournament? All counts and the clock will be cleared — starting again begins from level 1."
-      : "Stop this tournament? The clock will reset — starting again begins from level 1.";
-    if (!window.confirm(message)) {
-      return;
-    }
+  async function handleConfirmStop() {
+    setConfirmingStop(false);
+    // The schedule goes first: it is what a derived clock is built from, so
+    // clearing the clock while the start time is still set would only have the
+    // clock derive itself straight back on the next tick.
+    await saveTournament(stopTournament(tournament!, new Date().toISOString()));
     await stopClock();
-    await saveTournament(stopTournament(tournament!));
   }
 
   async function handleCapture() {
@@ -223,430 +250,349 @@ export default function ControlPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-themed-primary text-themed-primary">
-      <TournamentSidebar tournamentId={id} />
+    <Screen>
+      <TopBar tone="rail">
+        <BackLink to="/" label="All tournaments" />
+        <BarTitle title={tournament.name} subtitle={priceLine} />
+        {tournament.joinCode && (
+          <span className="plate ml-auto text-[16px] text-accent-lift">
+            {tournament.joinCode}
+          </span>
+        )}
+        <button
+          type="button"
+          className={`btn btn-icon btn-quiet ${tournament.joinCode ? "" : "ml-auto"}`}
+          title="Copy projector link"
+          aria-label="Copy projector link"
+          onClick={handleCopyProjectorLink}
+        >
+          <LinkIcon className="size-[17px]" />
+        </button>
+        <button
+          type="button"
+          className="btn btn-icon btn-quiet"
+          title="Capture projector image"
+          aria-label="Capture projector image"
+          onClick={handleCapture}
+          disabled={!currentLevel || isCapturing}
+        >
+          <CameraIcon className="size-[17px]" />
+        </button>
+      </TopBar>
 
-      <div className="flex flex-1 flex-col pb-16 md:pb-0">
-        <PageHeader
-          right={
-            <div className="flex items-center gap-2">
-              {tournament.joinCode && (
-                <span className="rounded bg-themed-tertiary px-2 py-1 font-mono text-sm font-semibold tracking-widest text-themed-secondary">
-                  {tournament.joinCode}
+      <div className="scroll felt flex flex-col">
+        {!clock ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-[18px] px-5 py-10">
+            {registration ? (
+              <>
+                <p className="kicker text-status-registering text-2xl font-bold">Registering</p>
+                {registration.secondsRemaining != null ? (
+                  <p className="engrave display text-[52px] tabular-nums">
+                    {formatDurationHMS(registration.secondsRemaining)}
+                  </p>
+                ) : (
+                  <p className="text-[18px] text-muted">
+                    Start the tournament when you're ready.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="display text-[29px] text-muted">Ready when you are.</p>
+            )}
+
+            {/* What the schedule will do next, read back in the terms it was set
+                in. While registering this is tonight's own start time; before
+                that it is the next evening the schedule fires — tomorrow for a
+                dated one, the next chosen weekday for a weekly one. */}
+            {(opensAt || startsAt) && (
+              <div className="slab flex flex-col gap-2 rounded-2xl px-5 py-4">
+                <span className="kicker text-[16px]">
+                  {registration ? 'This session' : 'Next session'}
+                </span>
+                {opensAt && (
+                  <div className="flex items-baseline justify-between gap-6">
+                    <span className="text-[18px] text-muted">Registration</span>
+                    <span className="engrave display text-[19px] tabular-nums">{opensAt}</span>
+                  </div>
+                )}
+                {startsAt && (
+                  <div className="flex items-baseline justify-between gap-6">
+                    <span className="text-[18px] text-muted">Start</span>
+                    <span className="engrave display text-[19px] tabular-nums">{startsAt}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary h-14 px-[30px] text-[20px]"
+              onClick={handleStart}
+            >
+              <PlayIcon className="size-[18px]" />
+              Start Tournament
+            </button>
+          </div>
+        ) : currentLevel ? (
+          <div className="content flex flex-auto flex-col items-center gap-[13px] px-4 pt-3.5 pb-5">
+            <div className="grid w-full grid-cols-3 gap-[9px]">
+              <Link
+                to={`/tournament/${id}/players`}
+                className="slab flex flex-col items-center gap-[3px] rounded-2xl px-2 py-[11px] text-inherit no-underline"
+              >
+                <span className="text-[14px] text-muted">Players</span>
+                <span className="engrave display text-[24px] tabular-nums">
+                  {formatNumber(remainingPlayers)}
+                  <span className="text-[16px] text-faint">
+                    {" "}
+                    / {formatNumber(totalRegistered)}
+                  </span>
+                </span>
+              </Link>
+
+              <div className="slab flex flex-col items-center gap-[3px] rounded-2xl px-2 py-[11px]">
+                <span className="text-[14px] text-muted">Prize Pool</span>
+                <span className="display text-[24px] tabular-nums text-accent">
+                  {formatMoney(prizePool, currency)}
+                </span>
+              </div>
+
+              <div className="slab flex flex-col items-center gap-[3px] rounded-2xl px-2 py-[11px]">
+                <span className="text-[14px] text-muted">Average Stack</span>
+                <span className="engrave display text-[24px] tabular-nums">
+                  {formatNumber(Math.round(avgStack))}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-x-[15px] gap-y-[3px] text-[18px] text-muted">
+              <span>
+                Total Entries <b className="engrave display">{formatNumber(totalEntries)}</b>
+              </span>
+              <span>
+                Re-buy <b className="engrave display">{formatNumber(rebuyCount)}</b>
+              </span>
+              <span>
+                Buy-in <b className="engrave display">{formatNumber(buyInCount)}</b>
+              </span>
+              <span>
+                Total Stack <b className="engrave display">{formatNumber(totalStack)}</b>
+              </span>
+            </div>
+
+            <div className="w-full text-center">
+              <h1 className="engrave truncate text-[28px]">{tournament.name}</h1>
+              <p className="mt-px text-[18px] text-faint">{priceLine}</p>
+            </div>
+
+            <div className="flex flex-col items-center gap-[5px]">
+              <span className={`tag px-3 py-[5px] text-[18px] ${LEVEL_PILL_CLASSES[levelState]}`}>
+                {levelLabel}
+              </span>
+              {isBreak && currentLevel.chipRace && (
+                <span className="text-[14px] tracking-[.16em] uppercase text-break">
+                  {formatChipRaceLabel(currentLevel)}
                 </span>
               )}
-              <button
-                type="button"
-                className="btn-ghost p-2"
-                title="Copy projector link"
-                onClick={handleCopyProjectorLink}
-              >
-                <ProjectorIcon />
-              </button>
-              <button
-                type="button"
-                className="btn-ghost p-2 disabled:opacity-40"
-                title="Capture projector image"
-                onClick={handleCapture}
-                disabled={!currentLevel || isCapturing}
-              >
-                <CameraIcon />
-              </button>
             </div>
-          }
-        />
 
-        <main className="flex flex-1 flex-col items-center overflow-y-auto px-3 py-4 sm:px-6 sm:py-8">
-          {!clock ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-4">
-              <p className="text-themed-muted">Ready when you are.</p>
-              <button
-                type="button"
-                className="btn-primary px-6 py-3 text-lg"
-                onClick={handleStart}
-              >
-                Start Tournament
-              </button>
-            </div>
-          ) : currentLevel ? (
-            <>
-              <div className="grid w-full max-w-3xl grid-cols-3 gap-2 sm:gap-4">
-                <Link
-                  to={`/tournament/${id}/players`}
-                  className="card p-2.5 text-center transition-all hover:ring-2 hover:ring-accent/50 sm:p-4"
-                >
-                  <div className="mb-1 text-xs text-themed-muted sm:text-sm">
-                    Players
-                  </div>
-                  <div className="text-lg font-bold sm:text-2xl">
-                    {formatNumber(remainingPlayers)}{" "}
-                    <span className="text-sm font-normal text-themed-muted sm:text-lg">
-                      / {formatNumber(totalRegistered)}
-                    </span>
-                  </div>
-                </Link>
+            <ClockDial
+              key={`${activeLevelIndex}${isFinished ? "f" : ""}${clock.isPaused ? "p" : ""}`}
+              secondsRemaining={secondsRemaining}
+              durationSeconds={currentLevel.durationSeconds}
+              isPaused={clock.isPaused}
+              isFinished={isFinished}
+              isBreak={isBreak}
+              isLowTime={isLowTime}
+              announce={clockAnnouncement}
+              caption={clockCaption}
+            />
 
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowPayouts((v) => !v)}
-                    className="card w-full p-2.5 text-center transition-all hover:ring-2 hover:ring-accent/50 sm:p-4"
-                  >
-                    <div className="mb-1 text-xs text-themed-muted sm:text-sm">
-                      Prize Pool
-                    </div>
-                    <div className="text-lg font-bold text-accent sm:text-2xl">
-                      {formatMoney(prizePool, currency)}
-                    </div>
-                  </button>
-                  {showPayouts && payoutResults.length > 0 && (
-                    <div className="card absolute left-1/2 top-full z-20 mt-1 w-64 -translate-x-1/2 border border-themed p-3 shadow-xl">
-                      <div className="mb-2 text-center text-xs uppercase tracking-wide text-themed-muted">
-                        Payouts
-                      </div>
-                      <div className="space-y-1.5">
-                        {payoutResults.map((result) => (
-                          <div
-                            key={result.position}
-                            className="flex items-center justify-between gap-2 text-sm"
-                          >
-                            <span className="shrink-0 text-themed-secondary">
-                              #{result.position}
-                            </span>
-                            <span className="shrink-0 text-xs text-themed-muted">
-                              {result.percentage}%
-                            </span>
-                            <span className="truncate font-semibold">
-                              {[
-                                result.amount > 0
-                                  ? formatMoney(result.amount, currency)
-                                  : null,
-                                result.note,
-                              ]
-                                .filter(Boolean)
-                                .join(' + ') || formatMoney(result.amount, currency)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="card p-2.5 text-center sm:p-4">
-                  <div className="mb-1 text-xs text-themed-muted sm:text-sm">
-                    Average Stack
-                  </div>
-                  <div className="text-lg font-bold sm:text-2xl">
-                    {formatNumber(Math.round(avgStack))}
-                  </div>
-                </div>
+            {!isBreak && (
+              <div className="flex items-end justify-center gap-3">
+                <BlindStat
+                  label="Small blind"
+                  value={formatCompactNumber(currentLevel.smallBlind)}
+                />
+                <span className="pb-1 text-[25px] text-faint">/</span>
+                <BlindStat label="Big blind" value={formatCompactNumber(currentLevel.bigBlind)} />
+                <span className="pb-1 text-[25px] text-faint">+</span>
+                <BlindStat
+                  label="Ante"
+                  value={formatAnte(currentLevel)}
+                  tone={hasAnte(currentLevel) ? "accent" : "faint"}
+                />
               </div>
+            )}
 
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-themed-muted sm:gap-x-4">
-                <span>
-                  Total Entries{" "}
-                  <b className="text-themed-secondary">
-                    {formatNumber(totalEntries)}
-                  </b>
-                </span>
-                <span>
-                  Re-buy{" "}
-                  <b className="text-themed-secondary">
-                    {formatNumber(rebuyCount)}
-                  </b>
-                </span>
-                <span>
-                  Buy-in{" "}
-                  <b className="text-themed-secondary">
-                    {formatNumber(buyInCount)}
-                  </b>
-                </span>
-                <span>
-                  Total Stack{" "}
-                  <b className="text-themed-secondary">
-                    {formatNumber(totalStack)}
-                  </b>
-                </span>
-              </div>
-
-              <div className="flex flex-1 flex-col items-center justify-center">
-                <h1 className="mb-1 max-w-full truncate text-center text-2xl font-bold text-themed-secondary sm:text-4xl md:text-5xl">
-                  {tournament.name}
-                </h1>
-                <p className="mb-2 text-sm text-themed-muted sm:mb-3 sm:text-base">
-                  {entryPriceLines.map((line) => line.label).join("/")} :{" "}
-                  {entryPriceLines
-                    .map((line) => formatAmount(line.amountCents))
-                    .join("/")}
-                </p>
-
-                <div
-                  className={`mb-3 rounded-full px-4 py-1.5 text-sm font-semibold sm:mb-4 sm:px-6 sm:py-2 sm:text-xl ${
-                    isBreak
-                      ? "border border-amber-500/30 bg-amber-500/20 text-amber-400"
-                      : isFinished || isFinalLevel
-                        ? "border border-accent/30 bg-accent/20 text-accent"
-                        : "bg-themed-tertiary text-themed-secondary"
-                  }`}
-                >
-                  {isBreak
-                    ? formatLevelLabel(currentLevel)
-                    : isFinished
-                      ? "Finished"
-                      : isFinalLevel
-                        ? "Final Level"
-                        : `Level ${currentLevel.level} of ${playLevelCount}`}
-                </div>
-
-                {isBreak && currentLevel.chipRace && (
-                  <div className="mb-3 text-lg font-semibold uppercase tracking-wide sm:mb-4 sm:text-2xl">
-                    {formatChipRaceLabel(currentLevel)}
+            {nextLevel && (
+              <div className="sunken w-full px-3.5 pt-[11px] pb-3">
+                <div className="kicker mb-1.5 text-center text-muted">Next level</div>
+                {nextLevel.isBreak ? (
+                  <div className="display text-center text-[22px] text-break">
+                    {formatLevelLabel(nextLevel)}
                   </div>
-                )}
-
-                <div
-                  className={`timer-display text-6xl font-bold leading-none tracking-tighter sm:text-8xl md:text-9xl lg:text-[9rem] ${
-                    isLowTime
-                      ? "text-red-500"
-                      : isBreak
-                        ? "text-amber-400"
-                        : "text-themed-primary"
-                  }`}
-                  role="timer"
-                  aria-live="assertive"
-                  aria-atomic="true"
-                  aria-label={`${formatClock(secondsRemaining)} ${clock.isPaused ? "paused" : "running"}`}
-                >
-                  {formatClock(secondsRemaining)}
-                </div>
-
-                {!isBreak && (
-                  <div className="mt-6 flex items-center gap-4 sm:mt-8 sm:gap-8 md:gap-10">
+                ) : (
+                  <div className="flex items-end justify-center gap-2.5">
                     <BlindStat
-                      label="Small Blind"
-                      value={formatCompactNumber(currentLevel.smallBlind)}
+                      label="Small blind"
+                      value={formatCompactNumber(nextLevel.smallBlind)}
+                      small
                     />
-                    <span className="text-2xl font-light text-themed-muted sm:text-4xl md:text-5xl">
-                      /
-                    </span>
+                    <span className="pb-0.5 text-[22px] text-faint">/</span>
                     <BlindStat
-                      label="Big Blind"
-                      value={formatCompactNumber(currentLevel.bigBlind)}
+                      label="Big blind"
+                      value={formatCompactNumber(nextLevel.bigBlind)}
+                      small
                     />
-                    <span className="text-2xl font-light text-themed-muted sm:text-4xl md:text-5xl">
-                      +
-                    </span>
+                    <span className="pb-0.5 text-[22px] text-faint">+</span>
                     <BlindStat
                       label="Ante"
-                      value={
-                        currentLevel.isBigBlindAnte
-                          ? `${formatCompactNumber(currentLevel.bigBlind)} BBA`
-                          : currentLevel.ante > 0
-                            ? formatCompactNumber(currentLevel.ante)
-                            : "–"
-                      }
-                      valueClassName={
-                        currentLevel.isBigBlindAnte || currentLevel.ante > 0
-                          ? "text-accent"
-                          : "text-themed-muted"
-                      }
+                      value={formatAnte(nextLevel)}
+                      small
+                      tone={hasAnte(nextLevel) ? "accent" : "faint"}
                     />
                   </div>
                 )}
-
-                {nextLevel && (
-                  <div className="card mt-4 inline-block px-4 py-3 sm:mt-6 sm:px-6 sm:py-4">
-                    <div className="mb-2 text-center text-xs uppercase tracking-wide text-themed-muted">
-                      Next Level
-                    </div>
-                    {nextLevel.isBreak ? (
-                      <div className="text-center text-lg font-semibold text-amber-400">
-                        {formatLevelLabel(nextLevel)}
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-3 sm:gap-4">
-                        <BlindStat
-                          label="Small Blind"
-                          value={formatCompactNumber(nextLevel.smallBlind)}
-                          small
-                        />
-                        <span className="text-xl font-light text-themed-muted">
-                          /
-                        </span>
-                        <BlindStat
-                          label="Big Blind"
-                          value={formatCompactNumber(nextLevel.bigBlind)}
-                          small
-                        />
-                        <span className="text-xl font-light text-themed-muted">
-                          +
-                        </span>
-                        <BlindStat
-                          label="Ante"
-                          value={
-                            nextLevel.isBigBlindAnte
-                              ? `${formatCompactNumber(nextLevel.bigBlind)} BBA`
-                              : nextLevel.ante > 0
-                                ? formatCompactNumber(nextLevel.ante)
-                                : "–"
-                          }
-                          valueClassName={
-                            nextLevel.isBigBlindAnte || nextLevel.ante > 0
-                              ? "text-accent"
-                              : "text-themed-muted"
-                          }
-                          small
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-                <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-themed-muted sm:gap-x-4">
-                  <span>
-                    Next Break{" "}
-                    <b className="text-themed-secondary">
-                      {nextBreakSeconds != null
-                        ? formatDurationHMS(nextBreakSeconds)
-                        : "—"}
-                    </b>
-                  </span>
-                </div>
-                <div className="mt-6 flex items-center gap-3 sm:mt-10 sm:gap-4">
-                  <button
-                    type="button"
-                    className="btn-secondary h-10 w-10 rounded-full p-0 sm:h-12 sm:w-12"
-                    disabled={clock.currentLevelIndex === 0}
-                    onClick={() =>
-                      jump(clock.currentLevelIndex - 1, Date.now())
-                    }
-                    title="Previous level"
-                    aria-label="Previous level"
-                  >
-                    <ChevronLeftIcon />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      clock.isPaused ? resume(Date.now()) : pause(Date.now())
-                    }
-                    aria-label={clock.isPaused ? "Play" : "Pause"}
-                    className={`flex h-16 w-16 items-center justify-center rounded-full transition-all duration-200 sm:h-20 sm:w-20 ${
-                      clock.isPaused
-                        ? "bg-accent text-white hover:opacity-90"
-                        : "bg-themed-tertiary text-themed-primary hover:opacity-80"
-                    }`}
-                  >
-                    {clock.isPaused ? <PlayIcon /> : <PauseIcon />}
-                  </button>
-
-                  <button
-                    type="button"
-                    className="btn-secondary h-10 w-10 rounded-full p-0 sm:h-12 sm:w-12"
-                    disabled={
-                      clock.currentLevelIndex >= structure.levels.length - 1
-                    }
-                    onClick={() =>
-                      jump(clock.currentLevelIndex + 1, Date.now())
-                    }
-                    title="Next level"
-                    aria-label="Next level"
-                  >
-                    <ChevronRightIcon />
-                  </button>
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 sm:mt-6 sm:gap-2">
-                  <button
-                    type="button"
-                    className="btn-ghost text-sm"
-                    onClick={() => adjustTime(-60)}
-                  >
-                    -1m
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-ghost text-sm"
-                    onClick={() => adjustTime(60)}
-                  >
-                    +1m
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-ghost text-sm"
-                    onClick={() => adjustTime(300)}
-                  >
-                    +5m
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-ghost text-sm"
-                    disabled={history.length === 0}
-                    onClick={undo}
-                  >
-                    Undo
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-ghost text-sm"
-                    onClick={toggleMute}
-                  >
-                    {isMuted ? "Unmute" : "Mute"}
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleStop}
-                  className={`mb-2 mt-8 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white transition-colors sm:mt-10 sm:px-8 sm:py-3.5 sm:text-base ${
-                    isFinished
-                      ? "bg-accent hover:opacity-90"
-                      : "bg-red-600 hover:bg-red-700"
-                  }`}
-                >
-                  {isFinished ? (
-                    <ResetIcon className="h-4 w-4 text-white" />
-                  ) : (
-                    <StopIcon className="h-4 w-4 text-white" />
-                  )}
-                  {isFinished ? "Reset Tournament" : "Stop Tournament"}
-                </button>
               </div>
-            </>
-          ) : null}
-        </main>
+            )}
+
+            <div className="text-[16px] text-muted">
+              Next Break{" "}
+              <b className="engrave display tabular-nums">
+                {nextBreakSeconds != null ? formatDurationHMS(nextBreakSeconds) : "—"}
+              </b>
+            </div>
+
+            <div className="flex items-center justify-center gap-6 py-0.5">
+              <button
+                type="button"
+                className="chip chip-slate size-14"
+                disabled={clock.currentLevelIndex === 0}
+                onClick={() => jump(clock.currentLevelIndex - 1, Date.now())}
+                title="Previous level"
+                aria-label="Previous level"
+              >
+                <ChevronLeftIcon className="size-[22px]" />
+              </button>
+
+              <button
+                type="button"
+                className="chip chip-gold size-22"
+                onClick={() => (clock.isPaused ? resume(Date.now()) : pause(Date.now()))}
+                aria-label={clock.isPaused ? "Resume" : "Pause"}
+              >
+                {clock.isPaused ? (
+                  <PlayIcon className="size-8" />
+                ) : (
+                  <PauseIcon className="size-8" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                className="chip chip-slate size-14"
+                disabled={clock.currentLevelIndex >= structure.levels.length - 1}
+                onClick={() => jump(clock.currentLevelIndex + 1, Date.now())}
+                title="Next level"
+                aria-label="Next level"
+              >
+                <ChevronRightIcon className="size-[22px]" />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-1.5">
+              {TIME_ADJUSTMENTS.map(({ label, seconds }) => (
+                <button
+                  key={label}
+                  type="button"
+                  className="btn btn-secondary min-h-[38px]"
+                  disabled={!canAdjustTime(currentLevel, secondsRemaining, seconds)}
+                  onClick={() => adjustTime(seconds)}
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="btn btn-secondary min-h-[38px]"
+                disabled={history.length === 0}
+                onClick={undo}
+              >
+                <ResetIcon className="size-4" />
+                Undo
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary min-h-[38px]"
+                onClick={toggleMute}
+              >
+                {isMuted ? (
+                  <SpeakerOffIcon className="size-4" />
+                ) : (
+                  <SpeakerIcon className="size-4" />
+                )}
+                {isMuted ? "Unmute" : "Mute"}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className={`btn mt-1.5 h-[46px] w-full text-[20px] ${
+                isFinished ? "btn-primary" : "btn-danger"
+              }`}
+              onClick={() => setConfirmingStop(true)}
+            >
+              {isFinished ? (
+                <ResetIcon className="size-[17px]" />
+              ) : (
+                <StopIcon className="size-[17px]" />
+              )}
+              {isFinished ? "Reset Tournament" : "Stop Tournament"}
+            </button>
+          </div>
+        ) : null}
       </div>
+
+      <TournamentDock tournamentId={id} />
+
+      <ConfirmDialog
+        open={confirmingStop}
+        title={isFinished ? "Reset tournament?" : "Stop tournament?"}
+        message={
+          isFinished
+            ? "The clock returns to Level 1 and player counters are cleared. The blind structure is kept."
+            : "The live clock is cleared on every screen, including the projector, and counters are reset. Stopping means starting over, not pausing."
+        }
+        confirmLabel={isFinished ? "Reset" : "Stop"}
+        tone={isFinished ? "primary" : "danger"}
+        onConfirm={handleConfirmStop}
+        onCancel={() => setConfirmingStop(false)}
+      />
 
       {/* Hosts the projector layout in a hidden 1920×1080 iframe so the capture
           is a faithful HD image regardless of the device that triggered it. */}
       {currentLevel && (
         <ProjectorCaptureFrame ref={captureFrameRef}>
           <ProjectorView
-            tournamentName={tournament.name}
-            currency={currency}
-            backgroundPath={backgroundPath}
-            entryPriceLines={entryPriceLines}
-            startingStack={startingStack}
-            prizePool={prizePool}
-            payoutResults={payoutResults}
-            currentLevel={currentLevel}
-            nextLevel={nextLevel}
-            secondsRemaining={secondsRemaining}
-            isPaused={clock?.isPaused ?? false}
-            isFinished={isFinished}
-            remainingPlayers={remainingPlayers}
-            totalRegistered={totalRegistered}
-            totalEntries={totalEntries}
-            rebuyCount={rebuyCount}
-            totalStack={totalStack}
-            avgStack={avgStack}
-            nextBreakSeconds={nextBreakSeconds}
+            {...buildProjectorData(
+              tournament,
+              {
+                structure,
+                currentLevel,
+                nextLevel,
+                secondsRemaining,
+                nextBreakSeconds,
+                activeLevelIndex,
+                isPaused: clock?.isPaused ?? false,
+                isFinished,
+              },
+              resolveBackgroundPath(tournament.projectorBackgroundId),
+            )}
           />
         </ProjectorCaptureFrame>
       )}
 
       <Toast message={toastMessage} />
-    </div>
+    </Screen>
   );
 }

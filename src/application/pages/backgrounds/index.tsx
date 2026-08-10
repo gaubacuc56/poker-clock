@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useBackgroundStore } from '@composition/container';
 import type { Background } from '@domain/entities';
-import PageHeader from '../../components/layout/PageHeader';
-import ConfirmDialog from '../../components/ConfirmDialog';
-import Spinner from '../../components/Spinner';
-import { ChevronLeftIcon, TrashIcon, UploadIcon } from '../../components/icons';
+import Screen from '@application/components/template/Screen';
+import TopBar from '@application/components/template/TopBar';
+import BackLink from '@application/components/template/TopBar/sections/BackLink';
+import ConfirmDialog from '@application/components/ui/ConfirmDialog';
+import Spinner from '@application/components/ui/Spinner';
+import { TrashIcon, UploadIcon } from '@application/components/ui/icons';
 
 export default function BackgroundsPage() {
   const backgrounds = useBackgroundStore((state) => state.backgrounds);
@@ -45,76 +46,76 @@ export default function BackgroundsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-themed-primary text-themed-primary">
-      <PageHeader />
-
-      <div className="mx-auto max-w-3xl px-4 py-6 pb-20 sm:px-6 sm:py-10">
-        <Link
-          to="/settings"
-          className="btn-ghost mb-4 inline-flex items-center gap-1.5 px-0 text-sm"
-        >
-          <ChevronLeftIcon className="h-4 w-4" />
-          Back to Settings
-        </Link>
-
-        <h1 className="mb-4 text-2xl font-semibold">Projector backgrounds</h1>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileChange}
-        />
+    <Screen>
+      <TopBar>
+        <BackLink to="/settings" label="Back to settings" />
+        <h1 className="text-[22px]">Projector backgrounds</h1>
         <button
           type="button"
-          className="btn-primary mb-6 inline-flex items-center gap-2"
+          className="btn btn-primary ml-auto"
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
         >
-          {isUploading ? <Spinner /> : <UploadIcon className="h-4 w-4" />}
-          Upload
+          {isUploading ? <Spinner /> : <UploadIcon className="size-[17px]" />}
+          {isUploading ? 'Uploading…' : 'Upload'}
         </button>
-        {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
+      </TopBar>
 
-        {isLoaded && backgrounds.length === 0 ? (
-          <p className="text-sm text-themed-muted">No backgrounds yet. Upload one to get started.</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {backgrounds.map((background) => (
-              <div
-                key={background.id}
-                className="group relative overflow-hidden rounded-lg border border-themed"
-              >
-                <img
-                  src={background.path}
-                  alt={background.label}
-                  className="h-20 w-full object-cover"
-                />
-                <p className="truncate px-2 py-1 text-xs text-themed-muted">{background.label}</p>
-                <button
-                  type="button"
-                  className="absolute right-1.5 top-1.5 rounded-md bg-black/60 p-1.5 text-white transition-colors hover:bg-red-600"
-                  title={`Delete ${background.label}`}
-                  aria-label={`Delete ${background.label}`}
-                  onClick={() => setPendingDelete(background)}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      <div className="scroll felt px-4 py-3.5">
+        <div className="content">
+          {error && <p className="mb-3 text-[18px] text-coral">{error}</p>}
+
+          {isLoaded && backgrounds.length === 0 ? (
+            <p className="px-2 py-10 text-center text-[16px] text-faint">
+              No backgrounds yet. Upload one to get started.
+            </p>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-2.5">
+              {backgrounds.map((background) => (
+                <div
+                  key={background.id}
+                  className="relative overflow-hidden rounded-2xl bg-surface-2 shadow-lift-sm"
                 >
-                  <TrashIcon className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+                  <img
+                    src={background.path}
+                    alt={background.label}
+                    className="aspect-[16/10] w-full object-cover opacity-85"
+                  />
+                  <div className="truncate px-2.5 py-[7px] text-[14px] text-muted">
+                    {background.label}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-icon absolute top-1.5 right-1.5 size-[30px] bg-base-deep/80 text-coral"
+                    title={`Delete ${background.label}`}
+                    aria-label={`Delete ${background.label}`}
+                    onClick={() => setPendingDelete(background)}
+                  >
+                    <TrashIcon className="size-[15px]" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <ConfirmDialog
         open={pendingDelete !== null}
         title="Delete background?"
-        message={`"${pendingDelete?.label ?? ''}" will be permanently removed. Any tournament still using it will fall back to a plain background.`}
+        message={`Tournaments still using “${pendingDelete?.label ?? ''}” fall back to a plain background.`}
         isBusy={isDeleting}
         onConfirm={handleConfirmDelete}
         onCancel={() => setPendingDelete(null)}
       />
-    </div>
+    </Screen>
   );
 }

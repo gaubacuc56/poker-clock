@@ -2,9 +2,20 @@ import type {
   BlindLevel,
   CurrencyUnit,
   PayoutUnit,
+  ProjectorLayout,
   SoundSettings,
   TournamentStatus,
 } from '@domain/entities';
+import type { ScheduleRepeat } from '@domain/rules/tournamentSchedule';
+
+/**
+ * The `projector` jsonb bag. Every key is optional — rows written before a
+ * setting existed simply don't have it, and the repository supplies the
+ * default. Adding a setting here needs no migration.
+ */
+export interface ProjectorSettings {
+  layout?: ProjectorLayout;
+}
 
 /** The stored jsonb shape — some older rows may still have `percentage` instead of `value`; the repository maps both. */
 export interface RawPayoutTier {
@@ -47,6 +58,15 @@ export interface Database {
           sounds: SoundSettings;
           join_code: string;
           projector_background_id: string | null;
+          projector: ProjectorSettings;
+          schedule_repeat: ScheduleRepeat;
+          registration_start_at: string | null;
+          tournament_start_at: string | null;
+          schedule_weekdays: number[];
+          registration_time: string | null;
+          start_time: string | null;
+          schedule_dismissed_at: string | null;
+          reg_end_time: string | null;
           created_at: string;
           updated_at: string;
         };

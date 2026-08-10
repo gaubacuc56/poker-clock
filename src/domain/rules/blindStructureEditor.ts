@@ -65,6 +65,53 @@ export function createBreak(): BlindLevel {
   };
 }
 
+/** One level replaced in place. Nothing is renumbered — a patch never changes
+ *  which rows are play levels. */
+export function updateLevelAt(
+  levels: BlindLevel[],
+  index: number,
+  patch: Partial<BlindLevel>,
+): BlindLevel[] {
+  return levels.map((level, i) => (i === index ? { ...level, ...patch } : level));
+}
+
+/** A level inserted at `position`, with the play-level numbering redone around it. */
+export function insertLevelAt(
+  levels: BlindLevel[],
+  position: number,
+  level: BlindLevel,
+): BlindLevel[] {
+  const next = [...levels];
+  next.splice(position, 0, level);
+  return renumberLevels(next);
+}
+
+/**
+ * A level removed and the rest renumbered. The last remaining level is kept: a
+ * structure with nothing in it has no clock to run.
+ */
+export function removeLevelAt(levels: BlindLevel[], index: number): BlindLevel[] {
+  if (levels.length <= 1) return levels;
+  return renumberLevels(levels.filter((_, i) => i !== index));
+}
+
+/**
+ * A level swapped with its neighbour one step in `direction`, renumbered after.
+ * Moving off either end is a no-op rather than an error — the caller is a pair
+ * of buttons, and the ends are where they get pressed.
+ */
+export function moveLevel(
+  levels: BlindLevel[],
+  index: number,
+  direction: -1 | 1,
+): BlindLevel[] {
+  const target = index + direction;
+  if (target < 0 || target >= levels.length) return levels;
+  const next = [...levels];
+  [next[index], next[target]] = [next[target], next[index]];
+  return renumberLevels(next);
+}
+
 /**
  * Fills in defaults left unset in the editor before the structure is saved —
  * currently just a break with no length entered, which falls back to the

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useAuthStore } from '@composition/container';
-import PasswordInput from '../../components/PasswordInput';
+import PasswordInput from '@application/components/ui/PasswordInput';
+import Screen from '@application/components/template/Screen';
+import Brand from '@application/components/template/Brand';
 
 export default function AuthPage() {
   const signIn = useAuthStore((state) => state.signIn);
@@ -23,18 +25,20 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-themed-primary px-4 text-themed-primary">
-      <div className="card w-full max-w-sm p-6">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent">
-            <span className="text-sm font-bold text-white">♠</span>
+    <Screen>
+      <div className="scroll felt grid place-items-center px-6 py-7">
+        <form onSubmit={handleSubmit} className="slab w-[min(360px,100%)] rounded-3xl p-6">
+          <div className="mb-[18px] flex flex-col items-center gap-2.5">
+            <Brand className="size-[88px]" glow />
+            <span className="text-center text-[13px] tracking-[.26em] uppercase text-muted">
+              Poker Tournament Clock
+            </span>
           </div>
-          <h1 className="text-lg font-semibold">Poker Clock</h1>
-        </div>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <label className="block">
-            <span className="mb-1 block text-sm text-themed-muted">Email</span>
+          <h1 className="mb-[3px] text-[30px]">Sign in</h1>
+
+          <label className="mb-2.5 block">
+            <span className="field-label">Email</span>
             <input
               type="email"
               required
@@ -44,8 +48,9 @@ export default function AuthPage() {
               autoComplete="email"
             />
           </label>
+
           <label className="block">
-            <span className="mb-1 block text-sm text-themed-muted">Password</span>
+            <span className="field-label">Password</span>
             <PasswordInput
               value={password}
               onChange={setPassword}
@@ -54,17 +59,21 @@ export default function AuthPage() {
             />
           </label>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="mt-2 text-[18px] text-coral">{error}</p>}
 
-          <button type="submit" className="btn-primary w-full" disabled={isSubmitting}>
-            Sign in
+          <button
+            type="submit"
+            className="btn btn-primary mt-4 h-11 w-full text-[18px]"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Signing in…' : 'Sign in'}
           </button>
-        </form>
 
-        <p className="mt-4 text-center text-xs text-themed-muted">
-          No account? Contact the organizer to get one created.
-        </p>
+          <p className="mt-4 text-[14px] text-faint text-center">
+            Accounts are created by the organizer.
+          </p>
+        </form>
       </div>
-    </div>
+    </Screen>
   );
 }

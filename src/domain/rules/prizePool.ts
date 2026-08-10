@@ -16,7 +16,11 @@ function totalMoneyIn(tournament: TournamentConfig): number {
   );
 }
 
-/** When a guarantee is set, it IS the prize pool — no entrant/buy-in math involved. Only falls back to computing from entries when there's no guarantee at all. */
+/**
+ * When a guarantee is set, it IS the prize pool — no entrant/buy-in math
+ * involved. Only falls back to computing from entries when there's no
+ * guarantee at all.
+ */
 export function calculatePrizePoolForTournament(tournament: TournamentConfig): number {
   if (tournament.guaranteedPrizePool != null) return tournament.guaranteedPrizePool;
   return totalMoneyIn(tournament);

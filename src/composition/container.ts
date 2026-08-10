@@ -39,6 +39,7 @@ export function findTournamentByJoinCode(code: string) {
 // No infrastructure dependency — re-exported here so the UI only ever needs
 // one import path for state (`@composition/container`), never `app/*` directly.
 export { useClockStore } from '../application/stores/clockStore';
+export { useThemeStore, type Theme } from '../application/stores/themeStore';
 export { useClockTick } from '../application/hooks/useClockTick';
 export { useToast } from '../application/hooks/useToast';
 export { useTournamentClock } from '../application/hooks/useTournamentClock';

@@ -37,7 +37,7 @@ erDiagram
         int eliminated_count "admin-controlled counter"
         int rebuy_count "admin-controlled counter"
         int add_on_count "admin-controlled counter"
-        int late_reg_level
+        int late_reg_level "closes late reg, and the level the Reg End line names"
         bool allow_rebuy
         bool allow_add_on
         bigint rebuy_price_cents "nullable, falls back to buy_in_cents"
@@ -45,6 +45,14 @@ erDiagram
         jsonb blind_levels "BlindLevel[]"
         jsonb payout_tiers "PayoutTier[] — { position, value, note? }"
         jsonb sounds "SoundSettings"
+        text schedule_repeat "0012 — once|weekly, decides which half below is read"
+        timestamptz registration_start_at "nullable, 0010 — once: doors open, UTC+7"
+        timestamptz tournament_start_at "nullable, 0010 — once: clock starts here"
+        smallint_arr schedule_weekdays "0012 — weekly: 0=Sun..6=Sat, UTC+7"
+        text registration_time "nullable, 0012 — weekly: HH:mm UTC+7"
+        text start_time "nullable, 0012 — weekly: HH:mm UTC+7"
+        timestamptz schedule_dismissed_at "nullable, 0012 — Stop dismissed this night"
+        text reg_end_time "nullable, 0011 — HH:mm wall clock, no date"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -100,4 +108,48 @@ The bucket is Public so the unauthenticated `/p/:join_code` projector view can r
 
 ## Not shown
 
+## Scheduled start (`0010_tournament_schedule.sql`)
+
+`registration_start_at` and `tournament_start_at` are both nullable — an unscheduled tournament, the norm, has neither and is started by hand exactly as before. They are real `timestamptz` columns rather than keys in the `projector` jsonb bag because the clock starts itself off `tournament_start_at`: the value has to be something Postgres can type-check and compare, not presentation.
+
+Instants are stored in UTC; the organiser picks them in UTC+7 (`src/domain/rules/tournamentSchedule.ts` owns that conversion, and ICT's lack of DST is why a fixed offset is the whole rule). Once `registration_start_at` passes, the tournament's status moves to `registering` and the projector counts down to `tournament_start_at`; when that arrives the Control screen starts the clock. With no `tournament_start_at` set, registration stays open and the admin starts it manually.
+
+Both columns are exposed through `get_tournament_by_join_code`, which `0010` re-declares — the TV is the screen that has to show the countdown, and anything missing from that function is invisible to it.
+
+## Registration close announcement (`0011_registration_end.sql`)
+
+The projector prints `Reg End: Level 8 ( 20h30 )` under the buy-in/re-buy/stack line. Only the time is new here — the level is `late_reg_level`, which already exists and already means exactly this. Deliberately not a second column: the sign on the TV and the rule the app enforces (`isLateRegClosed`) are one number and cannot drift apart. `late_reg_level` of 0 announces nothing.
+
+`reg_end_time` is a bare time of day, stored as text in `HH:mm` rather than as a `time`: it's the exact string `<input type="time">` produces, and `time`'s `HH:MM:SS` would need trimming on every read for precision nobody enters. There is deliberately no date — the room reads the time off the wall, and a tournament running behind simply reaches the level later than the sign says.
+
+Either half may stand alone: level with no time reads `Reg End: Level 8`, time with no level reads `Reg End: 20h30`. `0011` re-declares `get_tournament_by_join_code` to expose the column, since the projector is the only screen this line is for.
+
 Row-level security policies, indexes, and the `set_updated_at` trigger are omitted here for readability — see the migration files themselves for those.
+
+## Repeating schedules, run by the database (`0012_weekly_schedule_and_cron.sql`)
+
+Two changes that only make sense together.
+
+**Repeating.** A dated schedule describes one evening, so stopping the run clears it and the organiser enters tomorrow's date tomorrow — a club that runs every Friday was doing that weekly. `schedule_repeat` decides which half of the schedule is read: `once` uses `registration_start_at` + `tournament_start_at`; `weekly` uses `schedule_weekdays` (0 = Sunday … 6 = Saturday, UTC+7) plus `registration_time` and `start_time` (`HH:mm`, UTC+7, same day). Times of day are text, matching `reg_end_time` and the string `<input type="time">` produces.
+
+Nothing outside `src/domain/rules/tournamentSchedule.ts` knows there are two shapes: `scheduleOccurrence` resolves either to the two instants of the occurrence in play, and the phase, the registration countdown and the derived clock all read that. A weekly occurrence is current from its registration time for 24 hours — long enough for a night running past midnight, over well before the next week, so the TV announces the coming night rather than sitting on a stale result.
+
+`schedule_dismissed_at` is the Dismiss half of an alarm. Stop on a weekly tournament records the instant instead of clearing the days, and occurrences that opened at or before it are skipped — the next day on the list still fires. Turning the arrangement off means clearing `schedule_weekdays` in setup. Stop on a dated schedule still clears the two instants, since that schedule described one evening.
+
+**Run by the database.** Every scheduled transition used to need a browser. The screens *derive* the registration board and the clock from the schedule, so a TV that is on shows the right thing at the right second — but the `status` a dashboard reads, the `clock_states` row a run needs, and the eventual `finished` were only ever written by an open control screen. A club that sets a Friday alarm and closes the app is entitled to have Friday happen.
+
+`advance_tournament_schedules()` does those writes and `pg_cron` calls it every minute, covering both ends of the lifecycle:
+
+| At | Write |
+|---|---|
+| Registration time | `status: setup → registering` |
+| Start time | `status → running`, insert `clock_states` with `level_started_at_epoch_ms` = the scheduled instant |
+| Last level runs out | `status → finished` |
+
+It is idempotent: every branch is guarded on the status it changes and the clock row is an `on conflict do nothing` insert, so repeated runs cost nothing. The start instant is used rather than `now()`, so a tournament the job reaches late is late-into-itself, not starting fresh — the same rule the client uses when adopting a derived clock. Finishing applies to manually started tournaments too, since the status should be true whoever started it, and it changes only the status: the clock row is left alone so the result keeps showing until the admin stops the tournament. The function is `security definer` and writes across owners, so it is revoked from `public` — only the scheduler may call it.
+
+Stop stays authoritative over the job. It deletes the clock row and either clears a dated schedule or records `schedule_dismissed_at`, so `tournament_occurrence` stops returning an evening that has started and there is nothing left to re-insert.
+
+A minute is the job's resolution because a minute is the resolution a schedule is set at. It is only the bookkeeping cadence — the room still sees the countdown update every 250ms.
+
+**Known duplication.** `tournament_occurrence()` restates `scheduleOccurrence`, and `tournament_clock_finished()` restates `isClockFinished` from `src/domain/rules/blindProgression.ts`. Both are deliberate — the screens cannot ask the database every 250ms, and a status that only updates when somebody is looking is not a status — and both can drift, so change each pair together. The schedule half is meant to be collapsed by having the API return the resolved instants, at which point the client stops computing them at all.

@@ -3,89 +3,84 @@ import { useTournamentStore } from '@composition/container';
 import { calculatePrizePoolForTournament } from '@domain/rules/prizePool';
 import { computeTournamentStats } from '@domain/rules/tournamentStats';
 import { formatMoney, formatNumber } from '@domain/rules/format';
-import TournamentSidebar from '../../components/layout/TournamentSidebar';
-import PageHeader from '../../components/layout/PageHeader';
 import type { TournamentConfig } from '@domain/entities';
+import Screen from '@application/components/template/Screen';
+import TopBar from '@application/components/template/TopBar';
+import BackLink from '@application/components/template/TopBar/sections/BackLink';
+import BarTitle from '@application/components/template/TopBar/sections/BarTitle';
+import TournamentDock from '@application/components/template/TournamentDock';
 import CounterRow from './sections/CounterRow';
 
 export default function PlayersPage() {
   const { id } = useParams<{ id: string }>();
-  const tournament = useTournamentStore((state) =>
-    id ? state.getById(id) : undefined,
-  );
+  const tournament = useTournamentStore((state) => (id ? state.getById(id) : undefined));
   const saveTournament = useTournamentStore((state) => state.save);
 
   if (!tournament || !id) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-themed-primary text-themed-primary">
-        Tournament not found.
-      </div>
+      <Screen>
+        <div className="scroll felt grid place-items-center text-muted">
+          Tournament not found.
+        </div>
+      </Screen>
     );
   }
 
   const prizePool = calculatePrizePoolForTournament(tournament);
   const { remainingPlayers } = computeTournamentStats(tournament);
+  const currency = tournament.currency ?? 'USD';
 
   function update(patch: Partial<TournamentConfig>) {
     saveTournament({ ...tournament!, ...patch });
   }
 
   return (
-    <div className="flex min-h-screen bg-themed-primary text-themed-primary">
-      <TournamentSidebar tournamentId={id} />
+    <Screen>
+      <TopBar tone="rail">
+        <BackLink to={`/tournament/${id}/control`} label="Back to timer" />
+        <BarTitle
+          title={`${tournament.name} — Players`}
+          subtitle={`${formatNumber(remainingPlayers)} remaining of ${formatNumber(
+            tournament.entrantCount,
+          )} · Prize pool: ${formatMoney(prizePool, currency)}`}
+        />
+      </TopBar>
 
-      <div className="flex flex-1 flex-col pb-16 md:pb-0">
-        <PageHeader />
-
-        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8">
-        <div className="mx-auto max-w-xl">
-          <div className="mb-6">
-            <h1 className="text-xl font-semibold">{tournament.name} — Players</h1>
-            <p className="text-sm text-themed-muted">
-              {formatNumber(remainingPlayers)} remaining of {formatNumber(tournament.entrantCount)} · Prize pool:{' '}
-              {formatMoney(prizePool, tournament.currency ?? 'USD')}
-            </p>
-          </div>
-
-          <div className="space-y-3">
+      <div className="scroll felt px-[18px] pt-1.5 pb-5">
+        <div className="content">
+          <CounterRow
+            label="Buy-ins"
+            value={tournament.entrantCount}
+            min={tournament.eliminatedCount}
+            onChange={(value) => update({ entrantCount: value })}
+          />
+          <CounterRow
+            label="Eliminated"
+            value={tournament.eliminatedCount}
+            min={0}
+            max={tournament.entrantCount}
+            onChange={(value) => update({ eliminatedCount: value })}
+          />
+          {tournament.allowRebuy && (
             <CounterRow
-              label="Buy-ins"
-              value={tournament.entrantCount}
-              min={tournament.eliminatedCount}
-              onChange={(value) => update({ entrantCount: value })}
-            />
-            <CounterRow
-              label="Eliminated"
-              value={tournament.eliminatedCount}
+              label="Re-buys"
+              value={tournament.rebuyCount}
               min={0}
-              max={tournament.entrantCount}
-              onChange={(value) => update({ eliminatedCount: value })}
+              onChange={(value) => update({ rebuyCount: value })}
             />
-            {tournament.allowRebuy && (
-              <CounterRow
-                label="Rebuys"
-                value={tournament.rebuyCount}
-                min={0}
-                onChange={(value) => update({ rebuyCount: value })}
-              />
-            )}
-            {tournament.allowAddOn && (
-              <CounterRow
-                label="Add-ons"
-                value={tournament.addOnCount}
-                min={0}
-                onChange={(value) => update({ addOnCount: value })}
-              />
-            )}
-          </div>
-
-          <p className="mt-6 text-xs text-themed-muted">
-            Rebuys and add-ons are each assumed to cost the buy-in and grant the
-            starting stack.
-          </p>
+          )}
+          {tournament.allowAddOn && (
+            <CounterRow
+              label="Add-ons"
+              value={tournament.addOnCount}
+              min={0}
+              onChange={(value) => update({ addOnCount: value })}
+            />
+          )}
         </div>
-        </main>
       </div>
-    </div>
+
+      <TournamentDock tournamentId={id} />
+    </Screen>
   );
 }

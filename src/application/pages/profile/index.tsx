@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuthStore, useToast } from '@composition/container';
-import PageHeader from '../../components/layout/PageHeader';
-import PasswordInput from '../../components/PasswordInput';
-import Toast from '../../components/Toast';
-import { ChevronLeftIcon } from '../../components/icons';
-import Spinner from '../../components/Spinner';
+import Screen from '@application/components/template/Screen';
+import TopBar from '@application/components/template/TopBar';
+import BackLink from '@application/components/template/TopBar/sections/BackLink';
+import PasswordInput from '@application/components/ui/PasswordInput';
+import Toast from '@application/components/ui/Toast';
+import Spinner from '@application/components/ui/Spinner';
 
 export default function ProfilePage() {
   const email = useAuthStore((state) => state.session?.email ?? '');
@@ -42,28 +42,23 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-themed-primary text-themed-primary">
-      <PageHeader />
+    <Screen>
+      <TopBar>
+        <BackLink to="/settings" label="Back to settings" />
+        <h1 className="text-[22px]">Profile</h1>
+      </TopBar>
 
-      <div className="mx-auto max-w-sm px-4 py-6 sm:px-6 sm:py-10">
-        <Link
-          to="/settings"
-          className="btn-ghost mb-4 inline-flex items-center gap-1.5 px-0 text-sm"
-        >
-          <ChevronLeftIcon className="h-4 w-4" />
-          Back to Settings
-        </Link>
-
-        <h1 className="mb-6 text-2xl font-semibold">Profile</h1>
-
-        <label className="mb-4 block">
-          <span className="mb-1 block text-sm text-themed-muted">Email</span>
-          <input type="email" className="input" value={email} disabled />
-        </label>
-
-        <form className="space-y-4" onSubmit={handleSubmit}>
+      <div className="scroll felt p-4">
+        <form onSubmit={handleSubmit} className="content flex flex-col gap-3">
           <label className="block">
-            <span className="mb-1 block text-sm text-themed-muted">Current password</span>
+            <span className="field-label">Email</span>
+            <input type="email" className="input" value={email} disabled />
+          </label>
+
+          <hr className="hr" />
+
+          <label className="block">
+            <span className="field-label">Current password</span>
             <PasswordInput
               value={currentPassword}
               onChange={setCurrentPassword}
@@ -71,8 +66,9 @@ export default function ProfilePage() {
               required
             />
           </label>
+
           <label className="block">
-            <span className="mb-1 block text-sm text-themed-muted">New password</span>
+            <span className="field-label">New password</span>
             <PasswordInput
               value={newPassword}
               onChange={setNewPassword}
@@ -81,20 +77,16 @@ export default function ProfilePage() {
             />
           </label>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-[18px] text-coral">{error}</p>}
 
-          <button
-            type="submit"
-            className="btn-primary inline-flex w-full items-center justify-center gap-2"
-            disabled={isSubmitting}
-          >
+          <button type="submit" className="btn btn-primary h-10 self-start" disabled={isSubmitting}>
             {isSubmitting && <Spinner />}
-            Change password
+            Update password
           </button>
         </form>
       </div>
 
       <Toast message={toastMessage} />
-    </div>
+    </Screen>
   );
 }

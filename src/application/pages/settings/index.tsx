@@ -1,17 +1,27 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuthStore } from '@composition/container';
-import PageHeader from '../../components/layout/PageHeader';
-import ConfirmDialog from '../../components/ConfirmDialog';
-import { ChevronRightIcon, LogoutIcon } from '../../components/icons';
+import { useAuthStore, useThemeStore } from '@composition/container';
+import Screen from '@application/components/template/Screen';
+import TopBar from '@application/components/template/TopBar';
+import BackLink from '@application/components/template/TopBar/sections/BackLink';
+import ConfirmDialog from '@application/components/ui/ConfirmDialog';
+import { ChevronRightIcon, LogoutIcon, MoonIcon, SunIcon } from '@application/components/ui/icons';
 
 const MENU = [
   { to: '/settings/profile', title: 'Profile', subtitle: 'Email and password' },
-  { to: '/settings/backgrounds', title: 'Projector backgrounds', subtitle: 'Upload and manage images' },
+  {
+    to: '/settings/backgrounds',
+    title: 'Projector backgrounds',
+    subtitle: 'Upload and manage images',
+  },
 ];
 
 export default function SettingsPage() {
   const signOut = useAuthStore((state) => state.signOut);
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
+  const isDark = theme === 'dark';
+  const themeLabel = isDark ? 'Switch to light mode' : 'Switch to dark mode';
 
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -28,37 +38,47 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-themed-primary text-themed-primary">
-      <PageHeader />
+    <Screen>
+      <TopBar>
+        <BackLink to="/" label="Back to dashboard" />
+        <h1 className="text-[22px]">Settings</h1>
+        <button
+          type="button"
+          className="btn btn-icon btn-secondary ml-auto"
+          title={themeLabel}
+          aria-label={themeLabel}
+          onClick={() => setTheme(isDark ? 'light' : 'dark')}
+        >
+          {isDark ? <SunIcon className="size-[17px]" /> : <MoonIcon className="size-[17px]" />}
+        </button>
+      </TopBar>
 
-      <div className="mx-auto max-w-3xl px-4 py-6 pb-20 sm:px-6 sm:py-10">
-        <h1 className="mb-6 text-2xl font-semibold">Settings</h1>
-
-        <div className="mb-8 space-y-3">
+      <div className="scroll felt px-4 py-3.5">
+        <div className="content flex flex-col gap-2">
           {MENU.map((item) => (
             <Link
               key={item.to}
               to={item.to}
-              className="card flex items-center justify-between px-5 py-4"
+              className="btn w-full justify-start bg-surface px-5.5 py-3 text-left shadow-lift-sm"
             >
-              <div>
-                <p className="font-medium">{item.title}</p>
-                <p className="text-sm text-themed-muted">{item.subtitle}</p>
-              </div>
-              <ChevronRightIcon className="h-5 w-5 text-themed-muted" />
+              <span className="flex-1">
+                <span className="block text-[20px]">{item.title}</span>
+                <span className="block text-[14px] text-faint">{item.subtitle}</span>
+              </span>
+              <ChevronRightIcon className="size-[15px] text-faint" />
             </Link>
           ))}
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-themed bg-themed-secondary/80 px-4 py-3 backdrop-blur-sm sm:px-6">
-        <div className="mx-auto max-w-3xl">
+      <div className="bar bar-bottom">
+        <div className="content">
           <button
             type="button"
-            className="btn-danger inline-flex w-full items-center justify-center gap-2"
+            className="btn btn-danger-quiet h-[42px] w-full"
             onClick={() => setConfirmingSignOut(true)}
           >
-            <LogoutIcon className="h-4 w-4" />
+            <LogoutIcon className="size-[17px]" />
             Sign out
           </button>
         </div>
@@ -67,12 +87,12 @@ export default function SettingsPage() {
       <ConfirmDialog
         open={confirmingSignOut}
         title="Sign out?"
-        message="You'll need to sign in again to manage tournaments."
+        message="You will need your email and password to sign back in."
         confirmLabel="Sign out"
         isBusy={isSigningOut}
         onConfirm={handleConfirmSignOut}
         onCancel={() => setConfirmingSignOut(false)}
       />
-    </div>
+    </Screen>
   );
 }
