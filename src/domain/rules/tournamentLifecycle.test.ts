@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_ENTRANT_COUNT,
   hasTournamentStarted,
+  isTournamentInPlay,
   scheduledClockState,
   startTournament,
   stopTournament,
@@ -38,6 +39,9 @@ describe('startTournament', () => {
   });
 });
 
+/** The instant the admin pressed Stop, wherever a test needs one. */
+const STOPPED_AT = '2026-08-10T22:10:00.000Z';
+
 describe('scheduledClockState', () => {
   const tournamentStartAt = '2026-08-10T13:00:00.000Z';
   const at = (iso: string) => Date.parse(iso);
@@ -72,8 +76,56 @@ describe('scheduledClockState', () => {
   it('is null once stopping has cleared the schedule', () => {
     const stopped = stopTournament(
       makeTournament({ status: 'running', tournamentStartAt }),
+      STOPPED_AT,
     );
     expect(scheduledClockState(stopped, at('2026-08-10T14:00:00Z'))).toBeNull();
+  });
+
+  it('derives tonight’s clock from a weekly schedule', () => {
+    // 2026-08-10 is a Monday in UTC+7; 20:00 there is 13:00 UTC.
+    const weekly = makeTournament({
+      scheduleRepeat: 'weekly',
+      scheduleWeekdays: [1],
+      registrationTime: '19:00',
+      startTime: '20:00',
+    });
+    const clock = scheduledClockState(weekly, at('2026-08-10T14:00:00Z'));
+    expect(clock?.levelStartedAtEpochMs).toBe(at('2026-08-10T13:00:00Z'));
+  });
+
+  it('stops deriving once the night is dismissed, and returns next week', () => {
+    const weekly = makeTournament({
+      scheduleRepeat: 'weekly',
+      scheduleWeekdays: [1],
+      registrationTime: '19:00',
+      startTime: '20:00',
+      status: 'running',
+    });
+    const dismissed = stopTournament(weekly, '2026-08-10T14:00:00.000Z');
+
+    expect(dismissed.scheduleWeekdays).toEqual([1]);
+    // Tonight is over…
+    expect(scheduledClockState(dismissed, at('2026-08-10T15:00:00Z'))).toBeNull();
+    // …and the same weekday next week starts on its own.
+    expect(scheduledClockState(dismissed, at('2026-08-17T14:00:00Z'))?.levelStartedAtEpochMs).toBe(
+      at('2026-08-17T13:00:00Z'),
+    );
+  });
+});
+
+describe('isTournamentInPlay', () => {
+  it('is true only while a run is under way', () => {
+    expect(isTournamentInPlay('running')).toBe(true);
+    expect(isTournamentInPlay('paused')).toBe(true);
+  });
+
+  it('excludes finished, so a finish is never written twice', () => {
+    expect(isTournamentInPlay('finished')).toBe(false);
+  });
+
+  it('excludes a reset tournament, whose spent clock must not re-finish it', () => {
+    expect(isTournamentInPlay('setup')).toBe(false);
+    expect(isTournamentInPlay('registering')).toBe(false);
   });
 });
 
@@ -99,7 +151,7 @@ describe('stopTournament', () => {
       rebuyCount: 3,
       addOnCount: 7,
     });
-    expect(stopTournament(tournament)).toEqual({
+    expect(stopTournament(tournament, STOPPED_AT)).toEqual({
       ...tournament,
       status: 'setup',
       entrantCount: DEFAULT_ENTRANT_COUNT,
@@ -111,7 +163,7 @@ describe('stopTournament', () => {
 
   it('leaves add-on count untouched', () => {
     const tournament = makeTournament({ addOnCount: 9 });
-    expect(stopTournament(tournament).addOnCount).toBe(9);
+    expect(stopTournament(tournament, STOPPED_AT).addOnCount).toBe(9);
   });
 
   it('drops the schedule, so a live registration window cannot reopen', () => {
@@ -120,7 +172,7 @@ describe('stopTournament', () => {
       registrationStartAt: '2026-08-10T12:00:00.000Z',
       tournamentStartAt: '2026-08-10T13:00:00.000Z',
     });
-    const stopped = stopTournament(tournament);
+    const stopped = stopTournament(tournament, STOPPED_AT);
 
     expect(stopped.registrationStartAt).toBeUndefined();
     expect(stopped.tournamentStartAt).toBeUndefined();

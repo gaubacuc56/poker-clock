@@ -108,8 +108,12 @@ export default function SetupWizardPage() {
       addOnPrice: Number(draft.addOnPrice),
     }) ??
     validateSchedule({
+      scheduleRepeat: draft.scheduleRepeat,
       registrationStartAt: scheduleLocalToIso(draft.registrationStart),
       tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
+      scheduleWeekdays: draft.scheduleWeekdays,
+      registrationTime: draft.registrationTime,
+      startTime: draft.startTime,
     });
 
   async function handleFinish() {
@@ -157,7 +161,15 @@ export default function SetupWizardPage() {
             <BasicsStep
               draft={draft}
               currencies={currencies}
-              scheduleLocked={existing ? hasTournamentStarted(existing.status) : false}
+              // Only a dated schedule locks once the clock has run: it describes
+              // an evening that has happened. A weekly one describes the
+              // arrangement, which stays editable mid-run — otherwise setting it
+              // up once, the whole point, would be impossible to correct.
+              scheduleLocked={
+                draft.scheduleRepeat === 'once' &&
+                !!existing &&
+                hasTournamentStarted(existing.status)
+              }
               onChange={update}
             />
           )}

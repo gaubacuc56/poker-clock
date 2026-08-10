@@ -1,6 +1,7 @@
 /** Every icon in the set, re-exported so callers import from one place. */
 export { PlusIcon } from "./PlusIcon";
 export { HomeIcon } from "./HomeIcon";
+export { CalendarIcon } from "./CalendarIcon";
 export { ClockIcon } from "./ClockIcon";
 export { PlayersIcon } from "./PlayersIcon";
 export { SettingsIcon } from "./SettingsIcon";

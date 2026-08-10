@@ -14,7 +14,6 @@
  * no timezone database, no per-date lookup.
  */
 export const SCHEDULE_UTC_OFFSET_MINUTES = 7 * 60;
-export const SCHEDULE_TIMEZONE_LABEL = 'UTC+7';
 
 const OFFSET_MS = SCHEDULE_UTC_OFFSET_MINUTES * 60_000;
 
@@ -28,10 +27,52 @@ export const MAX_REGISTRATION_WINDOW_HOURS = 16;
 
 const MAX_REGISTRATION_WINDOW_MS = MAX_REGISTRATION_WINDOW_HOURS * 60 * 60_000;
 
-/** The two instants, as stored on a tournament: UTC ISO 8601, or absent. */
+/**
+ * Whether the schedule describes one occurrence or repeats every week.
+ *
+ * Absent means `once` — every tournament written before repeating shipped
+ * describes a single evening.
+ */
+export type ScheduleRepeat = 'once' | 'weekly';
+
+/** Sunday-first, matching `Date.getUTCDay()`. */
+export const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/**
+ * When a tournament opens and starts, as stored.
+ *
+ * Two shapes behind one interface. A `once` schedule names two instants. A
+ * `weekly` one names days of the week and two times of day, and the instants are
+ * worked out per occurrence — the whole point being that a weekly schedule
+ * survives the run it started, so an organiser sets Friday 19:00 once rather
+ * than re-entering tomorrow's date every evening.
+ *
+ * Everything downstream reads only the resolved pair, via
+ * {@link scheduleOccurrence}, so the two shapes never have to be handled twice.
+ */
 export interface TournamentSchedule {
+  /** Absent = 'once'. */
+  scheduleRepeat?: ScheduleRepeat;
+
+  /** `once`: the instants themselves. */
   registrationStartAt?: string;
   tournamentStartAt?: string;
+
+  /** `weekly`: which days it fires on (0 = Sunday … 6 = Saturday, in UTC+7). */
+  scheduleWeekdays?: number[];
+  /** `weekly`: times of day in UTC+7, `HH:mm`, both on the same day. */
+  registrationTime?: string;
+  startTime?: string;
+
+  /**
+   * The instant an occurrence was dismissed — Stop, on a weekly schedule.
+   *
+   * Occurrences that opened at or before this are skipped and the next one still
+   * fires: stopping ends tonight, not the arrangement. A weekly alarm cannot be
+   * cleared by stopping it, because then it would not be an alarm; turning it
+   * off means clearing its days in setup.
+   */
+  scheduleDismissedAt?: string;
 }
 
 /**
@@ -120,18 +161,155 @@ function formatWallClock(time: string | undefined): string {
   return match ? `${match[1]}h${match[2]}` : '';
 }
 
-/** A stored instant spelled out for a summary line, offset included so nobody
- *  has to guess which clock it is on. */
+/**
+ * A stored instant with its weekday — "Tue 2026-08-11 19:00 UTC+7".
+ *
+ * The weekday earns its place on a screen announcing what is next: a schedule set
+ * by weekday is read back the same way it was entered, and it saves the operator
+ * working out which day a date is.
+ */
+export function formatScheduleMoment(iso: string | undefined): string {
+  const local = scheduleIsoToLocal(iso);
+  if (!local) return '';
+  const [date, time] = local.split('T');
+  // Parsed as UTC so the weekday matches the UTC+7 date, not the device's.
+  const weekday = WEEKDAY_LABELS[new Date(`${date}T00:00:00Z`).getUTCDay()];
+  return `${weekday} ${formatScheduleDate(date)} ${time}`;
+}
+
+/**
+ * The app's date format, wherever a date is shown: `dd/mm/yyyy`.
+ *
+ * Assembled from the UTC+7 wall-clock string rather than handed to a locale
+ * formatter, so one tournament reads identically on every device in the room —
+ * a projector, a phone and a laptop set to three different locales would
+ * otherwise disagree about which number is the month.
+ */
+function formatScheduleDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split('-');
+  return `${day}/${month}/${year}`;
+}
+
 export function formatScheduleTime(iso: string | undefined): string {
   const local = scheduleIsoToLocal(iso);
   if (!local) return '';
   const [date, time] = local.split('T');
-  return `${date} ${time} ${SCHEDULE_TIMEZONE_LABEL}`;
+  return `${formatScheduleDate(date)} ${time}`;
+}
+
+/** The two instants of one occurrence, already resolved. */
+export interface ScheduleOccurrence {
+  registrationStartAt?: string;
+  tournamentStartAt?: string;
+}
+
+/** How far back or forward the weekly search looks — a week covers every case,
+ *  since that is the period. */
+const WEEK_DAYS = 7;
+
+/**
+ * How long an occurrence stays the current one after it opens.
+ *
+ * Without a bound, a schedule with a single weekday would treat last week's
+ * evening as current right up to tonight's registration time — the TV would sit
+ * on a seven-day-old FINISHED instead of announcing the night to come. A day is
+ * the right length: it covers a tournament that runs past midnight, and it is
+ * over long before the next week comes round.
+ */
+const OCCURRENCE_LIFETIME_MS = 24 * 60 * 60_000;
+
+/**
+ * The occurrence a weekly schedule is currently on, or the one it is next
+ * waiting for; a `once` schedule resolves to itself.
+ *
+ * The rule is "the most recent occurrence that has opened and not been
+ * dismissed, otherwise the next one to come". That single sentence is what makes
+ * a weekly schedule behave: tonight's run stays current all evening — including
+ * after its structure has run out, so the TV keeps showing the result — and the
+ * moment tonight is dismissed, or next week's registration time arrives, the
+ * screens move on without anyone touching them.
+ */
+export function scheduleOccurrence(
+  schedule: TournamentSchedule,
+  nowMs: number,
+): ScheduleOccurrence {
+  if (schedule.scheduleRepeat !== 'weekly') {
+    return {
+      registrationStartAt: schedule.registrationStartAt,
+      tournamentStartAt: schedule.tournamentStartAt,
+    };
+  }
+
+  const days = (schedule.scheduleWeekdays ?? []).filter((d) => d >= 0 && d <= 6);
+  if (days.length === 0 || !schedule.startTime) return {};
+
+  const dismissedAt = toEpochMs(schedule.scheduleDismissedAt) ?? -Infinity;
+  const openingTime = schedule.registrationTime ?? schedule.startTime;
+
+  // Today first, then backwards: the newest occurrence that has opened, is still
+  // within its day, and has outlived the last dismissal is the one in play.
+  for (let back = 0; back <= WEEK_DAYS; back++) {
+    const occurrence = occurrenceOnDay(schedule, nowMs, -back, days, openingTime);
+    if (!occurrence) continue;
+    const opensAt = Date.parse(occurrence.registrationStartAt!);
+    if (opensAt > nowMs) continue;
+    if (nowMs - opensAt >= OCCURRENCE_LIFETIME_MS) break;
+    if (opensAt > dismissedAt) return occurrence;
+  }
+
+  // Nothing current: announce the next one, so the screens can say it is coming.
+  for (let ahead = 0; ahead <= WEEK_DAYS; ahead++) {
+    const occurrence = occurrenceOnDay(schedule, nowMs, ahead, days, openingTime);
+    if (!occurrence) continue;
+    const opensAt = Date.parse(occurrence.registrationStartAt!);
+    if (opensAt > nowMs && opensAt > dismissedAt) return occurrence;
+  }
+  return {};
+}
+
+/** The occurrence on the UTC+7 day `offset` days from now, if that day is one of
+ *  the schedule's. */
+function occurrenceOnDay(
+  schedule: TournamentSchedule,
+  nowMs: number,
+  offset: number,
+  days: number[],
+  openingTime: string,
+): ScheduleOccurrence | null {
+  const today = new Date(nowMs + OFFSET_MS);
+  const day = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + offset),
+  );
+  if (!days.includes(day.getUTCDay())) return null;
+
+  const opensAt = instantOnDay(day, openingTime);
+  const startsAt = instantOnDay(day, schedule.startTime!);
+  if (opensAt == null || startsAt == null) return null;
+  return {
+    registrationStartAt: new Date(opensAt).toISOString(),
+    tournamentStartAt: new Date(startsAt).toISOString(),
+  };
+}
+
+/** A UTC+7 calendar day plus `HH:mm` as a UTC instant. */
+function instantOnDay(day: Date, time: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})/.exec(time);
+  if (!match) return null;
+  return (
+    Date.UTC(
+      day.getUTCFullYear(),
+      day.getUTCMonth(),
+      day.getUTCDate(),
+      Number(match[1]),
+      Number(match[2]),
+    ) - OFFSET_MS
+  );
 }
 
 export function getSchedulePhase(schedule: TournamentSchedule, nowMs: number): SchedulePhase {
-  const registrationAt = toEpochMs(schedule.registrationStartAt);
-  const startAt = toEpochMs(schedule.tournamentStartAt);
+  const occurrence = scheduleOccurrence(schedule, nowMs);
+  const registrationAt = toEpochMs(occurrence.registrationStartAt);
+  const startAt = toEpochMs(occurrence.tournamentStartAt);
 
   // Checked first so a start time that has already passed wins even if the
   // registration window was never set — the tournament is due either way.
@@ -152,10 +330,11 @@ export function getRegistrationWindow(
 ): RegistrationWindow | undefined {
   if (getSchedulePhase(schedule, nowMs) !== 'registering') return undefined;
 
-  const startAt = toEpochMs(schedule.tournamentStartAt);
+  const occurrence = scheduleOccurrence(schedule, nowMs);
+  const startAt = toEpochMs(occurrence.tournamentStartAt);
   if (startAt == null) return { secondsRemaining: null, elapsedFraction: 0 };
 
-  const registrationAt = toEpochMs(schedule.registrationStartAt) ?? nowMs;
+  const registrationAt = toEpochMs(occurrence.registrationStartAt) ?? nowMs;
   const total = Math.max(1, startAt - registrationAt);
   const remaining = Math.max(0, startAt - nowMs);
   return {
@@ -173,9 +352,20 @@ export function getRegistrationWindow(
  * no fixed start, or be given a start time with no registration window in front
  * of it — and neither case has two times to relate.
  */
-export function validateSchedule(schedule: TournamentSchedule): string | null {
+export function validateSchedule(
+  schedule: TournamentSchedule,
+  nowMs?: number,
+): string | null {
+  if (schedule.scheduleRepeat === 'weekly') return validateWeekly(schedule);
+
   const registrationAt = toEpochMs(schedule.registrationStartAt);
   const startAt = toEpochMs(schedule.tournamentStartAt);
+
+  if (nowMs != null) {
+    const earliest = Math.min(registrationAt ?? Infinity, startAt ?? Infinity);
+    if (earliest < nowMs) return 'The schedule cannot start in the past.';
+  }
+
   if (registrationAt == null || startAt == null) return null;
 
   if (startAt <= registrationAt) {
@@ -185,6 +375,40 @@ export function validateSchedule(schedule: TournamentSchedule): string | null {
     return `Tournament start must be within ${MAX_REGISTRATION_WINDOW_HOURS} hours of registration start.`;
   }
   return null;
+}
+
+/**
+ * A weekly schedule is either off — no days picked — or complete. Half of one is
+ * the state worth catching: days chosen with no start time would announce a
+ * recurrence that never fires.
+ *
+ * The two times are read on the same UTC+7 day, which is what lets them be
+ * compared as plain `HH:mm` strings and keeps the 16-hour rule meaning what it
+ * does for a dated schedule.
+ */
+function validateWeekly(schedule: TournamentSchedule): string | null {
+  const days = schedule.scheduleWeekdays ?? [];
+  if (days.length === 0 && !schedule.startTime && !schedule.registrationTime) return null;
+
+  if (days.length === 0) return 'Pick at least one day for a weekly schedule.';
+  if (!schedule.startTime) return 'A weekly schedule needs a start time.';
+  if (!schedule.registrationTime) return null;
+
+  const opens = minutesOfDay(schedule.registrationTime);
+  const starts = minutesOfDay(schedule.startTime);
+  if (opens == null || starts == null) return null;
+
+  if (starts <= opens) return 'Tournament start must be after registration start.';
+  if (starts - opens > MAX_REGISTRATION_WINDOW_HOURS * 60) {
+    return `Tournament start must be within ${MAX_REGISTRATION_WINDOW_HOURS} hours of registration start.`;
+  }
+  return null;
+}
+
+/** `HH:mm` as minutes past midnight, so two times of day compare as numbers. */
+function minutesOfDay(time: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})/.exec(time);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }
 
 /** An unparseable stored value is treated as absent rather than as epoch zero. */

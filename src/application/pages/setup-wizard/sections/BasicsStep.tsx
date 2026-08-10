@@ -2,11 +2,14 @@ import type { Currency } from '@domain/entities';
 import type { TournamentDraft } from '@domain/rules/tournamentDraft';
 import {
   scheduleLocalToIso,
-  scheduleNowLocal,
   validateSchedule,
+  WEEKDAY_LABELS,
+  type ScheduleRepeat,
 } from '@domain/rules/tournamentSchedule';
 import { WarningIcon } from '@application/components/ui/icons';
+import DateTimeField from './DateTimeField';
 import Field from './Field';
+import TimeField from './TimeField';
 import Switch from './Switch';
 
 interface BasicsStepProps {
@@ -27,17 +30,17 @@ export default function BasicsStep({
 }: BasicsStepProps) {
   const rebuyPriceValid = !draft.allowRebuy || Number(draft.rebuyPrice) > 0;
   const addOnPriceValid = !draft.allowAddOn || Number(draft.addOnPrice) > 0;
-  const scheduleError = validateSchedule({
-    registrationStartAt: scheduleLocalToIso(draft.registrationStart),
-    tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
-  });
-
-  // Neither picker offers a moment that has already gone, and the start can't be
-  // offered before the registration it has to follow. Both are UTC+7 wall-time
-  // strings in the input's own format, so they order as plain strings.
-  const earliest = scheduleNowLocal(Date.now());
-  const earliestStart =
-    draft.registrationStart > earliest ? draft.registrationStart : earliest;
+  const scheduleError = validateSchedule(
+    {
+      scheduleRepeat: draft.scheduleRepeat,
+      registrationStartAt: scheduleLocalToIso(draft.registrationStart),
+      tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
+      scheduleWeekdays: draft.scheduleWeekdays,
+      registrationTime: draft.registrationTime,
+      startTime: draft.startTime,
+    },
+    scheduleLocked ? undefined : Date.now(),
+  );
 
   const regEndFilled = Boolean(draft.lateRegLevel || draft.regEndTime);
 
@@ -111,34 +114,96 @@ export default function BasicsStep({
       </div>
 
       <div className="card mt-4 gap-2.5">
-        <Field label="Registration start">
-          <input
-            type="datetime-local"
-            className={`input tabular-nums ${scheduleError ? 'input-bad' : ''}`}
-            min={earliest}
-            disabled={scheduleLocked}
-            value={draft.registrationStart}
-            onChange={(e) => onChange('registrationStart', e.target.value)}
-          />
+        <Field label="Schedule">
+          <select
+            className="input"
+            value={draft.scheduleRepeat}
+            onChange={(e) => onChange('scheduleRepeat', e.target.value as ScheduleRepeat)}
+          >
+            <option value="once">Once</option>
+            <option value="weekly">Weekdays</option>
+          </select>
         </Field>
-        <Field label="Tournament start">
-          <input
-            type="datetime-local"
-            className={`input tabular-nums ${scheduleError ? 'input-bad' : ''}`}
-            min={earliestStart}
-            disabled={scheduleLocked}
-            value={draft.tournamentStart}
-            onChange={(e) => onChange('tournamentStart', e.target.value)}
-          />
-        </Field>
-        {scheduleLocked && (
-          <p className="text-[16px] text-muted">
-            The tournament has already started.
-            Stop it to schedule another run.
-          </p>
+
+        {draft.scheduleRepeat === 'once' ? (
+          <>
+            <DateTimeField
+              label="Registration start"
+              value={draft.registrationStart}
+              disabled={scheduleLocked}
+              invalid={Boolean(scheduleError)}
+              onChange={(value) => onChange('registrationStart', value)}
+            />
+            <DateTimeField
+              label="Tournament start"
+              value={draft.tournamentStart}
+              disabled={scheduleLocked}
+              invalid={Boolean(scheduleError)}
+              onChange={(value) => onChange('tournamentStart', value)}
+            />
+            {scheduleLocked && (
+              <p className="text-[16px] text-muted">
+                The tournament has already started. Stop it to schedule another run.
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Days as toggles rather than a list: an alarm is set by tapping the
+                days you mean, and the whole week has to be visible at once. */}
+            <div>
+              <span className="field-label">Days</span>
+              <div className="flex flex-wrap gap-1.5">
+                {WEEKDAY_LABELS.map((label, day) => {
+                  const on = draft.scheduleWeekdays.includes(day);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      aria-pressed={on}
+                      className={`btn h-10 px-3.5 text-[17px] ${
+                        on ? 'btn-primary' : 'btn-secondary'
+                      }`}
+                      onClick={() =>
+                        onChange(
+                          'scheduleWeekdays',
+                          on
+                            ? draft.scheduleWeekdays.filter((d) => d !== day)
+                            : [...draft.scheduleWeekdays, day],
+                        )
+                      }
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="min-w-0">
+                <span className="mb-1 block text-[15px] text-faint">Registration</span>
+                <TimeField
+                  value={draft.registrationTime}
+                  ariaLabel="Weekly registration time"
+                  invalid={Boolean(scheduleError)}
+                  onChange={(value) => onChange('registrationTime', value)}
+                />
+              </div>
+              <div className="min-w-0">
+                <span className="mb-1 block text-[15px] text-faint">Start</span>
+                <TimeField
+                  value={draft.startTime}
+                  ariaLabel="Weekly start time"
+                  invalid={Boolean(scheduleError)}
+                  onChange={(value) => onChange('startTime', value)}
+                />
+              </div>
+            </div>
+          </>
         )}
+
         {scheduleError && (
-          <p className="flex gap-1.5 text-[18px] text-coral">
+          <p className="flex items-center gap-1.5 text-[18px] text-coral">
             <WarningIcon className="size-[15px] shrink-0" />
             {scheduleError}
           </p>
@@ -184,15 +249,14 @@ export default function BasicsStep({
                 onChange={(e) => onChange('lateRegLevel', e.target.value.replace(/\D/g, ''))}
               />
             </label>
-            <label className="block min-w-0">
+            <div className="min-w-0">
               <span className="mb-1 block text-[15px] text-faint">Time of day</span>
-              <input
-                type="time"
-                className="input tabular-nums"
+              <TimeField
                 value={draft.regEndTime}
-                onChange={(e) => onChange('regEndTime', e.target.value)}
+                ariaLabel="Reg end time of day"
+                onChange={(value) => onChange('regEndTime', value)}
               />
-            </label>
+            </div>
           </div>
         </div>
       </div>

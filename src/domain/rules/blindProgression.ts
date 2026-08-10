@@ -40,6 +40,15 @@ export function resumeClock(clock: ClockState, nowMs: number): ClockState {
   };
 }
 
+export function canAdjustTime(
+  level: BlindLevel,
+  secondsRemaining: number,
+  deltaSeconds: number,
+): boolean {
+  const adjusted = secondsRemaining + deltaSeconds;
+  return adjusted >= 0 && adjusted <= level.durationSeconds;
+}
+
 /** Shifts the level start time so secondsRemaining changes by deltaSeconds (negative to subtract). */
 export function adjustTime(clock: ClockState, deltaSeconds: number): ClockState {
   return {

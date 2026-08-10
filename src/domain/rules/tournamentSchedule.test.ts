@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatRegistrationEnd,
+  formatScheduleMoment,
   formatScheduleTime,
   getRegistrationWindow,
   getSchedulePhase,
+  scheduleOccurrence,
   scheduleIsoToLocal,
   scheduleLocalToIso,
   scheduleNowLocal,
@@ -60,12 +62,28 @@ describe('scheduleNowLocal', () => {
 });
 
 describe('formatScheduleTime', () => {
-  it('spells the time out with the offset it belongs to', () => {
-    expect(formatScheduleTime(UTC_NOON)).toBe('2026-08-10 19:00 UTC+7');
+  it('spells the time out without naming the offset', () => {
+    expect(formatScheduleTime(UTC_NOON)).toBe('10/08/2026 19:00');
   });
 
   it('is empty when nothing was scheduled', () => {
     expect(formatScheduleTime(undefined)).toBe('');
+  });
+});
+
+describe('formatScheduleMoment', () => {
+  it('names the weekday of the UTC+7 date, not the device’s', () => {
+    // 2026-08-10 is a Monday in UTC+7.
+    expect(formatScheduleMoment(UTC_NOON)).toBe('Mon 10/08/2026 19:00');
+  });
+
+  it('names the day the organiser meant when UTC is still the day before', () => {
+    // 20:00 UTC Monday is 03:00 Tuesday in UTC+7 — the schedule's day is Tuesday.
+    expect(formatScheduleMoment('2026-08-10T20:00:00.000Z')).toBe('Tue 11/08/2026 03:00');
+  });
+
+  it('is empty when nothing was scheduled', () => {
+    expect(formatScheduleMoment(undefined)).toBe('');
   });
 });
 
@@ -176,6 +194,122 @@ describe('getRegistrationWindow', () => {
   });
 });
 
+describe('scheduleOccurrence — weekly', () => {
+  // 2026-08-10 is a Monday in UTC+7. 19:00/20:00 there are 12:00/13:00 UTC.
+  const friday = 5;
+  const monday = 1;
+  const weekly = {
+    scheduleRepeat: 'weekly' as const,
+    scheduleWeekdays: [monday],
+    registrationTime: '19:00',
+    startTime: '20:00',
+  };
+  const at = (iso: string) => Date.parse(iso);
+
+  it('resolves tonight while it is on', () => {
+    expect(scheduleOccurrence(weekly, at('2026-08-10T12:30:00Z'))).toEqual({
+      registrationStartAt: '2026-08-10T12:00:00.000Z',
+      tournamentStartAt: '2026-08-10T13:00:00.000Z',
+    });
+  });
+
+  it('keeps resolving tonight after its start, so the result stays up', () => {
+    expect(scheduleOccurrence(weekly, at('2026-08-11T04:00:00Z'))).toEqual({
+      registrationStartAt: '2026-08-10T12:00:00.000Z',
+      tournamentStartAt: '2026-08-10T13:00:00.000Z',
+    });
+  });
+
+  it('announces tonight a minute before it opens, not last week', () => {
+    expect(scheduleOccurrence(weekly, at('2026-08-10T11:59:00Z'))).toEqual({
+      registrationStartAt: '2026-08-10T12:00:00.000Z',
+      tournamentStartAt: '2026-08-10T13:00:00.000Z',
+    });
+  });
+
+  it('lets an occurrence go once its day is up, and announces the next', () => {
+    // Wednesday: Monday's night is long over, so the coming Monday is what
+    // there is to say — not a three-day-old result.
+    expect(scheduleOccurrence(weekly, at('2026-08-12T09:00:00Z'))).toEqual({
+      registrationStartAt: '2026-08-17T12:00:00.000Z',
+      tournamentStartAt: '2026-08-17T13:00:00.000Z',
+    });
+  });
+
+  it('skips a dismissed night and moves to the next one', () => {
+    const dismissed = { ...weekly, scheduleDismissedAt: '2026-08-10T14:00:00.000Z' };
+    expect(scheduleOccurrence(dismissed, at('2026-08-10T15:00:00Z'))).toEqual({
+      registrationStartAt: '2026-08-17T12:00:00.000Z',
+      tournamentStartAt: '2026-08-17T13:00:00.000Z',
+    });
+  });
+
+  it('picks the nearest of several days', () => {
+    const twoNights = { ...weekly, scheduleWeekdays: [monday, friday] };
+    // Saturday: Friday's night is the most recent one that opened.
+    expect(scheduleOccurrence(twoNights, at('2026-08-15T09:00:00Z')).registrationStartAt).toBe(
+      '2026-08-14T12:00:00.000Z',
+    );
+  });
+
+  it('is empty when the arrangement is off or half-written', () => {
+    expect(scheduleOccurrence({ ...weekly, scheduleWeekdays: [] }, at('2026-08-10T12:30:00Z')))
+      .toEqual({});
+    expect(scheduleOccurrence({ ...weekly, startTime: undefined }, at('2026-08-10T12:30:00Z')))
+      .toEqual({});
+  });
+
+  it('drives the phase the same way a dated schedule does', () => {
+    expect(getSchedulePhase(weekly, at('2026-08-10T11:00:00Z'))).toBe('waiting');
+    expect(getSchedulePhase(weekly, at('2026-08-10T12:30:00Z'))).toBe('registering');
+    expect(getSchedulePhase(weekly, at('2026-08-10T13:30:00Z'))).toBe('start-due');
+  });
+
+  it('counts down to tonight’s start', () => {
+    expect(getRegistrationWindow(weekly, at('2026-08-10T12:45:00Z'))).toEqual({
+      secondsRemaining: 900,
+      elapsedFraction: 0.75,
+    });
+  });
+
+  it('leaves a dated schedule resolving to itself', () => {
+    const once = {
+      registrationStartAt: '2026-08-10T12:00:00.000Z',
+      tournamentStartAt: '2026-08-10T13:00:00.000Z',
+    };
+    expect(scheduleOccurrence(once, at('2026-08-10T12:30:00Z'))).toEqual(once);
+  });
+});
+
+describe('validateSchedule — weekly', () => {
+  const weekly = { scheduleRepeat: 'weekly' as const };
+
+  it('accepts an arrangement that is simply off', () => {
+    expect(validateSchedule({ ...weekly, scheduleWeekdays: [] })).toBeNull();
+  });
+
+  it('rejects days with no start time, and a start time with no days', () => {
+    expect(validateSchedule({ ...weekly, scheduleWeekdays: [5] })).toBe(
+      'A weekly schedule needs a start time.',
+    );
+    expect(validateSchedule({ ...weekly, scheduleWeekdays: [], startTime: '20:00' })).toBe(
+      'Pick at least one day for a weekly schedule.',
+    );
+  });
+
+  it('applies the same two rules to the times of day', () => {
+    const set = (registrationTime: string, startTime: string) =>
+      validateSchedule({ ...weekly, scheduleWeekdays: [5], registrationTime, startTime });
+
+    expect(set('19:00', '20:00')).toBeNull();
+    expect(set('20:00', '19:00')).toBe('Tournament start must be after registration start.');
+    expect(set('20:00', '20:00')).toBe('Tournament start must be after registration start.');
+    expect(set('03:00', '20:00')).toBe(
+      'Tournament start must be within 16 hours of registration start.',
+    );
+  });
+});
+
 describe('validateSchedule', () => {
   it('accepts a start after the registration opens', () => {
     expect(
@@ -217,6 +351,31 @@ describe('validateSchedule', () => {
         tournamentStartAt: '2026-08-11T04:00:01Z',
       }),
     ).toBe('Tournament start must be within 16 hours of registration start.');
+  });
+
+  it('rejects a moment already gone, but only when asked to check', () => {
+    const past = {
+      registrationStartAt: '2026-08-10T12:00:00Z',
+      tournamentStartAt: '2026-08-10T13:00:00Z',
+    };
+    const now = Date.parse('2026-08-10T12:30:00Z');
+
+    expect(validateSchedule(past, now)).toBe('The schedule cannot start in the past.');
+    // No `nowMs`: an existing tournament can be re-read and re-saved without its
+    // own history failing validation.
+    expect(validateSchedule(past)).toBeNull();
+  });
+
+  it('accepts a schedule still ahead of now', () => {
+    expect(
+      validateSchedule(
+        {
+          registrationStartAt: '2026-08-10T12:00:00Z',
+          tournamentStartAt: '2026-08-10T13:00:00Z',
+        },
+        Date.parse('2026-08-10T11:00:00Z'),
+      ),
+    ).toBeNull();
   });
 
   it('has nothing to check when either half is missing', () => {

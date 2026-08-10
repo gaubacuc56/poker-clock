@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+/* The schedule pickers' base stylesheet. Themed to this file's tokens at the
+   bottom — react-datepicker ships a light default that would otherwise land a
+   white calendar in the middle of a dark form. */
+@import 'react-datepicker/dist/react-datepicker.css';
 
 /*
  * Poker Clock house style — warm table, chips, plates.
@@ -730,4 +734,95 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/*
+ * Schedule pickers (react-datepicker), wearing this app's tokens.
+ *
+ * The popover is portaled to <body>, so these selectors are global rather than
+ * scoped to the field — there is no ancestor to hang them off. Everything comes
+ * from a token: the calendar has to survive the light/dark switch along with the
+ * rest of the operator screens.
+ */
+.react-datepicker {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: var(--lift-lg);
+  color: var(--color-fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+}
+.react-datepicker__header {
+  border-bottom: 1px solid var(--color-hair);
+  background: var(--color-surface-2);
+}
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker__day-name {
+  color: var(--color-fg);
+  font-weight: 600;
+}
+.react-datepicker__day-name {
+  color: var(--color-faint);
+}
+.react-datepicker__day,
+.react-datepicker__time-list-item {
+  border-radius: 8px;
+  color: var(--color-fg);
+}
+.react-datepicker__day:hover,
+.react-datepicker__time-list-item:hover {
+  background: var(--btn-soft-h) !important;
+}
+.react-datepicker__day--outside-month,
+.react-datepicker__day--disabled {
+  color: var(--color-faint);
+}
+.react-datepicker__day--today {
+  font-weight: 700;
+  color: var(--color-accent);
+}
+/* `!important` only where the library sets the same property inline-equivalent
+   with its own high-specificity selector. */
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected,
+.react-datepicker__time-list-item--selected {
+  background: var(--color-accent) !important;
+  color: var(--color-accent-on) !important;
+  font-weight: 700;
+}
+.react-datepicker__time-container,
+.react-datepicker__time,
+.react-datepicker__time-box {
+  border-left-color: var(--color-hair);
+  background: var(--color-surface);
+}
+.react-datepicker__navigation-icon::before {
+  border-color: var(--color-muted);
+}
+.react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: var(--color-fg);
+}
+/* The default arrow is drawn from the light palette and cannot be recoloured
+   reliably across positions; the shadow already reads as a popover. */
+.react-datepicker__triangle {
+  display: none;
+}
+/* Above the dock and the toast, below nothing else. */
+.react-datepicker-popper {
+  z-index: 70;
+}
+
+/*
+ * The library wraps the input in an `inline-block` with no width, so the field
+ * shrank to its intrinsic size while the box around it stayed full width — which
+ * left the calendar and clock icons sitting outside the field they belong to.
+ * Both the wrapper and its inner container have to become block-level for the
+ * input's own `width: 100%` to mean the row.
+ */
+.react-datepicker-wrapper,
+.react-datepicker__input-container {
+  display: block;
+  width: 100%;
 }

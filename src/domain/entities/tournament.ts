@@ -1,3 +1,4 @@
+import type { ScheduleRepeat } from '../rules/tournamentSchedule';
 import type { BlindLevel } from './blinds';
 import type { PayoutTier, PayoutUnit } from './payout';
 import type { SoundSettings } from './sound';
@@ -71,8 +72,18 @@ export interface TournamentConfig {
   projectorBackgroundId?: string;
   /** Which arrangement the TV draws. Absent = 'classic', the only layout before this shipped. */
   projectorLayout?: ProjectorLayout;
+  /**
+   * The schedule. `once` uses the two instants; `weekly` uses the days and times
+   * of day and works the instants out per occurrence. See
+   * `domain/rules/tournamentSchedule` — nothing outside it reads these directly.
+   */
+  scheduleRepeat?: ScheduleRepeat;
   registrationStartAt?: string;
   tournamentStartAt?: string;
+  scheduleWeekdays?: number[];
+  registrationTime?: string;
+  startTime?: string;
+  scheduleDismissedAt?: string;
   /**
    * The wall-clock time `lateRegLevel` is expected at, as `HH:mm` — the other
    * half of the projector's "Reg End" announcement. A time of day with no date:

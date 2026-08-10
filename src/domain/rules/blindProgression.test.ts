@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   adjustTime,
+  canAdjustTime,
   advanceClockToActiveLevel,
   createClockState,
   getActiveLevel,
@@ -182,5 +183,41 @@ describe('blindProgression', () => {
 
     const withLessTime = adjustTime(clock, -60);
     expect(getSecondsRemaining(withLessTime, LEVEL, 0)).toBe(540);
+  });
+});
+
+describe('canAdjustTime', () => {
+  /** A 20-minute level, the example the rule was written against. */
+  const level: BlindLevel = {
+    level: 1,
+    smallBlind: 100,
+    bigBlind: 200,
+    ante: 0,
+    isBigBlindAnte: false,
+    durationSeconds: 20 * 60,
+    isBreak: false,
+  };
+
+  it('refuses to add time a full level has not spent', () => {
+    expect(canAdjustTime(level, 20 * 60, 60)).toBe(false);
+    expect(canAdjustTime(level, 20 * 60, 300)).toBe(false);
+  });
+
+  it('allows +1m once a minute has gone', () => {
+    // 18:59 left — the organiser's own example.
+    expect(canAdjustTime(level, 18 * 60 + 59, 60)).toBe(true);
+    // Exactly 19:00 lands the clock back on a full level, which is harmless.
+    expect(canAdjustTime(level, 19 * 60, 60)).toBe(true);
+    expect(canAdjustTime(level, 19 * 60 + 1, 60)).toBe(false);
+  });
+
+  it('allows +5m only once five minutes have gone', () => {
+    expect(canAdjustTime(level, 15 * 60, 300)).toBe(true);
+    expect(canAdjustTime(level, 15 * 60 + 1, 300)).toBe(false);
+  });
+
+  it('refuses to remove more time than is left', () => {
+    expect(canAdjustTime(level, 30, -60)).toBe(false);
+    expect(canAdjustTime(level, 60, -60)).toBe(true);
   });
 });

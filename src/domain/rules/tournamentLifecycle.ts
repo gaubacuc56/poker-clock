@@ -1,6 +1,6 @@
 import type { BlindLevel, BlindStructure, ClockState, TournamentConfig } from '../entities';
 import { createClockState, isClockFinished } from './blindProgression';
-import type { TournamentSchedule } from './tournamentSchedule';
+import { scheduleOccurrence, type TournamentSchedule } from './tournamentSchedule';
 
 /** New tournaments — and any tournament that's just been stopped — start with this many buy-ins already counted. */
 export const DEFAULT_ENTRANT_COUNT = 5;
@@ -18,10 +18,25 @@ export function scheduledClockState(
   schedule: TournamentSchedule,
   nowMs: number,
 ): ClockState | null {
-  if (!schedule.tournamentStartAt) return null;
-  const startAt = Date.parse(schedule.tournamentStartAt);
+  // Resolved, so a weekly schedule derives its clock from tonight's occurrence
+  // rather than from a date nobody entered.
+  const { tournamentStartAt } = scheduleOccurrence(schedule, nowMs);
+  if (!tournamentStartAt) return null;
+  const startAt = Date.parse(tournamentStartAt);
   if (Number.isNaN(startAt) || nowMs < startAt) return null;
   return createClockState(startAt);
+}
+
+/**
+ * The run is still in play — the only states a finish can be detected from.
+ *
+ * A finished tournament is already finished, and one sitting at 'setup' or
+ * 'registering' has no run to end: whatever clock is lying around belongs to a
+ * previous one. Mirrors the rows `advance_tournament_schedules` scans, so the
+ * database and the screens agree on what can finish.
+ */
+export function isTournamentInPlay(status: TournamentConfig['status']): boolean {
+  return status === 'running' || status === 'paused';
 }
 
 /**
@@ -67,20 +82,30 @@ export function isTournamentFinished(
  * counters reset here so the next Start begins fresh rather than resuming
  * mid-tournament. Add-ons are deliberately left untouched.
  *
- * The schedule is dropped along with them. A schedule describes one occurrence,
- * and stopping is the admin declaring that occurrence over — left in place, a
- * registration window that hasn't elapsed yet would reopen on the very next
- * tick and put the tournament straight back to counting down. Scheduling
- * another run means saying when it is.
+ * What happens to the schedule depends on what kind it is, and `nowIso` is the
+ * instant the admin stopped it.
+ *
+ * A dated schedule describes one occurrence, so stopping drops it — left in
+ * place, a registration window that hasn't elapsed yet would reopen on the very
+ * next tick and put the tournament straight back to counting down.
+ *
+ * A weekly one is an arrangement, not an occurrence: stopping dismisses tonight
+ * and the next day on the list still fires, which is the whole reason for
+ * setting one. Turning it off means clearing its days in setup.
  */
-export function stopTournament(tournament: TournamentConfig): TournamentConfig {
-  return {
+export function stopTournament(
+  tournament: TournamentConfig,
+  nowIso: string,
+): TournamentConfig {
+  const ended = {
     ...tournament,
-    status: 'setup',
+    status: 'setup' as const,
     entrantCount: DEFAULT_ENTRANT_COUNT,
     eliminatedCount: 0,
     rebuyCount: 0,
-    registrationStartAt: undefined,
-    tournamentStartAt: undefined,
   };
+
+  return tournament.scheduleRepeat === 'weekly'
+    ? { ...ended, scheduleDismissedAt: nowIso }
+    : { ...ended, registrationStartAt: undefined, tournamentStartAt: undefined };
 }

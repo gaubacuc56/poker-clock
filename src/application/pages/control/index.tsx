@@ -10,7 +10,7 @@ import {
   resolveBackgroundPath,
 } from "@composition/container";
 import { formatChipRaceLabel, formatLevelLabel } from "@domain/rules/blindFormat";
-import { isClockFinished } from "@domain/rules/blindProgression";
+import { canAdjustTime, isClockFinished } from "@domain/rules/blindProgression";
 import { getEntryPriceLines } from "@domain/rules/entryPricing";
 import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
 import { computeTournamentStats } from "@domain/rules/tournamentStats";
@@ -23,11 +23,17 @@ import {
 } from "@domain/rules/controlLabels";
 import {
   finishTournament,
+  isTournamentInPlay,
   openRegistration,
   startTournament,
   stopTournament,
 } from "@domain/rules/tournamentLifecycle";
-import { getRegistrationWindow, getSchedulePhase } from "@domain/rules/tournamentSchedule";
+import {
+  formatScheduleMoment,
+  getRegistrationWindow,
+  getSchedulePhase,
+  scheduleOccurrence,
+} from "@domain/rules/tournamentSchedule";
 import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
 import { DEFAULT_CURRENCY } from "@domain/constants/tournament";
 import {
@@ -133,12 +139,16 @@ export default function ControlPage() {
 
   // Once the final level's clock reaches zero the run is over — persist the
   // 'finished' status so it reflects everywhere (dashboard badge included).
-  // The status guard keeps this from re-firing on every subsequent tick.
+  //
+  // Only a run in play can finish, which is also what stops Reset from undoing
+  // itself: resetting writes 'setup' before the clock row is cleared, so for one
+  // render a spent clock sits beside a tournament that is no longer finished, and
+  // a looser guard read that as "finished again".
   useEffect(() => {
     if (!tournament || !structure || !currentLevel) return;
     if (
-      isClockFinished(structure, currentLevel, secondsRemaining) &&
-      tournament.status !== "finished"
+      isTournamentInPlay(tournament.status) &&
+      isClockFinished(structure, currentLevel, secondsRemaining)
     ) {
       void saveTournament(finishTournament(tournament));
     }
@@ -192,9 +202,10 @@ export default function ControlPage() {
     return <PageShell>Loading blind structure…</PageShell>;
   }
 
-  // Only meaningful before the clock exists — once it does, the level clock is
-  // the thing on screen.
   const registration = clock ? undefined : getRegistrationWindow(tournament, now);
+  const upcoming = clock ? undefined : scheduleOccurrence(tournament, now);
+  const opensAt = formatScheduleMoment(upcoming?.registrationStartAt);
+  const startsAt = formatScheduleMoment(upcoming?.tournamentStartAt);
 
   const prizePool = calculatePrizePoolForTournament(tournament);
   const priceLine = formatEntryPriceSummary(getEntryPriceLines(tournament));
@@ -223,7 +234,7 @@ export default function ControlPage() {
     // The schedule goes first: it is what a derived clock is built from, so
     // clearing the clock while the start time is still set would only have the
     // clock derive itself straight back on the next tick.
-    await saveTournament(stopTournament(tournament!));
+    await saveTournament(stopTournament(tournament!, new Date().toISOString()));
     await stopClock();
   }
 
@@ -276,12 +287,9 @@ export default function ControlPage() {
               <>
                 <p className="kicker text-status-registering text-2xl font-bold">Registering</p>
                 {registration.secondsRemaining != null ? (
-                  <>
-                    <p className="engrave display text-[52px] tabular-nums">
-                      {formatDurationHMS(registration.secondsRemaining)}
-                    </p>
-                   
-                  </>
+                  <p className="engrave display text-[52px] tabular-nums">
+                    {formatDurationHMS(registration.secondsRemaining)}
+                  </p>
                 ) : (
                   <p className="text-[18px] text-muted">
                     Start the tournament when you're ready.
@@ -290,6 +298,30 @@ export default function ControlPage() {
               </>
             ) : (
               <p className="display text-[29px] text-muted">Ready when you are.</p>
+            )}
+
+            {/* What the schedule will do next, read back in the terms it was set
+                in. While registering this is tonight's own start time; before
+                that it is the next evening the schedule fires — tomorrow for a
+                dated one, the next chosen weekday for a weekly one. */}
+            {(opensAt || startsAt) && (
+              <div className="slab flex flex-col gap-2 rounded-2xl px-5 py-4">
+                <span className="kicker text-[16px]">
+                  {registration ? 'This session' : 'Next session'}
+                </span>
+                {opensAt && (
+                  <div className="flex items-baseline justify-between gap-6">
+                    <span className="text-[18px] text-muted">Registration</span>
+                    <span className="engrave display text-[19px] tabular-nums">{opensAt}</span>
+                  </div>
+                )}
+                {startsAt && (
+                  <div className="flex items-baseline justify-between gap-6">
+                    <span className="text-[18px] text-muted">Start</span>
+                    <span className="engrave display text-[19px] tabular-nums">{startsAt}</span>
+                  </div>
+                )}
+              </div>
             )}
             <button
               type="button"
@@ -474,6 +506,7 @@ export default function ControlPage() {
                   key={label}
                   type="button"
                   className="btn btn-secondary min-h-[38px]"
+                  disabled={!canAdjustTime(currentLevel, secondsRemaining, seconds)}
                   onClick={() => adjustTime(seconds)}
                 >
                   {label}
