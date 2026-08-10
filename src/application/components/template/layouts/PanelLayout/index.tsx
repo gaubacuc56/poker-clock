@@ -50,6 +50,7 @@ export default function PanelLayout(props: ProjectorData) {
         gridTemplateRows: 'minmax(0,1fr)',
         gap: pu(2),
         padding: `${pu(2)} ${pu(4)}`,
+        paddingTop: 0,
         color: 'var(--pj-ink)',
       }}
     >
@@ -93,7 +94,7 @@ export default function PanelLayout(props: ProjectorData) {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-col justify-center" style={{ gap: pu(1.4) }}>
+      <div className="flex min-h-0 flex-col justify-evenly" style={{ gap: pu(1.4) }}>
         {/* Name over its buy-in / re-buy / stack line, both centred over the
             card — the same heading ledger builds, at the same sizes. */}
         <div className="flex flex-col items-center">

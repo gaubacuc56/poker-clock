@@ -77,7 +77,7 @@ export const PLACE_INK = 'var(--color-fg-strong)';
 
 /** Size of a payout list's place pip, in projector units. */
 const PIP_HEIGHT = 2.9;
-const PIP_TEXT = 1.5;
+const PIP_TEXT = 1.7;
 
 export function clockShadow(tone: ProjectorTone): string {
   return `0 0 ${pu(CLOCK_GLOW_RADIUS)} ${PROJECTOR_TONES[tone].glow}`;

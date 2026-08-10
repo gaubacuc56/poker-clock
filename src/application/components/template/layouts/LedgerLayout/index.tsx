@@ -73,6 +73,7 @@ export default function LedgerLayout(props: ProjectorData) {
           // list would push the stats and the clock down with it.
           gridTemplateRows: 'minmax(0,1fr)',
           padding: `${pu(2)} ${pu(4)}`,
+          paddingTop: 0,
         }}
       >
         <div
@@ -115,7 +116,7 @@ export default function LedgerLayout(props: ProjectorData) {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col items-center justify-center">
+        <div className="flex min-h-0 flex-col items-center justify-evenly">
           <div
             className={`display truncate text-center ${CENTRE_HEADING_WIDTH}`}
             style={{ fontSize: pu(TITLE_SIZE), fontWeight: 600, letterSpacing: '-.01em' }}
@@ -126,7 +127,6 @@ export default function LedgerLayout(props: ProjectorData) {
             className="flex justify-center whitespace-nowrap"
             style={{
               gap: pu(1.6),
-              marginTop: pu(1),
               fontSize: pu(PRICE_LINE_SIZE),
               color: 'var(--pj-dim)',
               letterSpacing: '.06em',
@@ -138,7 +138,6 @@ export default function LedgerLayout(props: ProjectorData) {
             <div
               className="max-w-full text-center"
               style={{
-                marginTop: pu(0.4),
                 fontSize: pu(PRICE_LINE_SIZE),
                 color: 'var(--pj-dim)',
                 letterSpacing: '.06em',

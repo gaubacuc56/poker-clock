@@ -48,6 +48,7 @@ export default function DialLayout(props: ProjectorData) {
         // element here that cannot be trimmed without shrinking the countdown,
         // so the frame gives up the height instead.
         padding: `${pu(2.4)} ${pu(4)}`,
+        paddingTop: 0,
         color: 'var(--pj-ink)',
       }}
     >

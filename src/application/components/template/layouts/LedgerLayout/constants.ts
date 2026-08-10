@@ -12,7 +12,11 @@ export const FINISHED_CLOCK_SIZE = 6;
  * has to read.
  */
 export const TITLE_SIZE = 4;
-export const PRICE_LINE_SIZE = 2;
+/** The buy-in / re-buy / stack line and the Reg End line under it, on all three
+ *  of the newer layouts — 0.4 over the size they were drawn at. Both are read
+ *  from a seat, not from the operator's desk. Classic sizes its own with
+ *  `SUBTITLE_SIZE` and is deliberately left where it was. */
+export const PRICE_LINE_SIZE = 2.5;
 export const LEVEL_LABEL_SIZE = 3;
 export const CHIP_RACE_SIZE = 1.8;
 export const BLIND_LABEL_SIZE = 2;
@@ -23,4 +27,6 @@ export const STAT_LABEL_SIZE = 1.7;
 export const STAT_VALUE_SIZE = 2.7;
 export const PRIZE_LABEL_SIZE = 1.5;
 export const PRIZE_VALUE_SIZE = 4.2;
-export const PAYOUT_ROW_SIZE = 2;
+/** 0.2 over the size this column was drawn at: the payout ladder is the one
+ *  thing on screen a player reads from the far side of the room. */
+export const PAYOUT_ROW_SIZE = 2.2;
