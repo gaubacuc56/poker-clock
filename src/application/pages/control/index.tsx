@@ -27,11 +27,7 @@ import {
   startTournament,
   stopTournament,
 } from "@domain/rules/tournamentLifecycle";
-import {
-  getRegistrationWindow,
-  getSchedulePhase,
-  type SchedulePhase,
-} from "@domain/rules/tournamentSchedule";
+import { getRegistrationWindow, getSchedulePhase } from "@domain/rules/tournamentSchedule";
 import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
 import { DEFAULT_CURRENCY } from "@domain/constants/tournament";
 import {
@@ -92,8 +88,6 @@ export default function ControlPage() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [confirmingStop, setConfirmingStop] = useState(false);
   const captureFrameRef = useRef<ProjectorCaptureFrameHandle>(null);
-  // Null until the first tick has been seen — see the schedule effect below.
-  const lastSchedulePhase = useRef<SchedulePhase | null>(null);
   const { toastMessage, showToast } = useToast();
 
   async function handleCopyProjectorLink() {
@@ -107,6 +101,7 @@ export default function ControlPage() {
   const {
     structure,
     clock,
+    isClockDerived,
     currentLevel,
     nextLevel,
     secondsRemaining,
@@ -129,7 +124,7 @@ export default function ControlPage() {
   // triggers the level/break sounds. Progress within the new level is preserved
   // (not reset to full), so reopening control never rewinds the countdown.
   useEffect(() => {
-    if (!clock || !structure || !id) return;
+    if (!clock || isClockDerived || !structure || !id) return;
     if (!clock.isPaused && activeLevelIndex !== clock.currentLevelIndex) {
       advanceToActiveLevel(structure, now);
     }
@@ -150,30 +145,29 @@ export default function ControlPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsRemaining, currentLevel, structure, tournament?.status]);
 
-  // The schedule runs itself. Opening registration is written down so the
-  // dashboard and the TV both read it, and a start time that has arrived starts
-  // the clock with nobody touching this screen.
+  // A scheduled tournament does not wait for this screen. Its clock is derived
+  // from the start time, so it is already running on the TV before anyone opens
+  // the app — which is the only way a scheduled start is any use.
   //
-  // Auto-start fires on the *crossing* into 'start-due', never on merely being
-  // in it. A schedule already in the past when this screen opens is history, not
-  // an instruction — which is what keeps a stopped tournament (back at 'setup',
-  // its past schedule intact) from starting itself all over again. The phase is
-  // recorded on every tick, clock or no clock, so the reference point survives a
-  // run and a stop.
+  // What is left for this screen is bookkeeping, and both halves are idempotent:
+  // adopt the derived clock into a real row, so the operator's own controls
+  // (pause, jump, adjust) have something to write to and the run survives a
+  // reload; and record the status the dashboard reads.
   useEffect(() => {
     if (!tournament || !id) return;
-    const phase = getSchedulePhase(tournament, now);
-    const previousPhase = lastSchedulePhase.current;
-    lastSchedulePhase.current = phase;
 
-    if (clock) return;
-
-    if (phase === "start-due") {
-      if (previousPhase != null && previousPhase !== "start-due") {
-        start(id, Date.now());
-        void saveTournament(startTournament(tournament));
-      }
-    } else if (phase === "registering" && tournament.status === "setup") {
+    if (isClockDerived && clock) {
+      // Started at the scheduled instant, not now, so adopting it doesn't
+      // rewind the countdown the room has been watching.
+      start(id, clock.levelStartedAtEpochMs);
+      void saveTournament(startTournament(tournament));
+      return;
+    }
+    if (
+      !clock &&
+      tournament.status === "setup" &&
+      getSchedulePhase(tournament, now) === "registering"
+    ) {
       void saveTournament(openRegistration(tournament));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -226,8 +220,11 @@ export default function ControlPage() {
 
   async function handleConfirmStop() {
     setConfirmingStop(false);
-    await stopClock();
+    // The schedule goes first: it is what a derived clock is built from, so
+    // clearing the clock while the start time is still set would only have the
+    // clock derive itself straight back on the next tick.
     await saveTournament(stopTournament(tournament!));
+    await stopClock();
   }
 
   async function handleCapture() {

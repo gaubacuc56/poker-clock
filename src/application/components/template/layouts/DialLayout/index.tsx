@@ -137,11 +137,13 @@ export default function DialLayout(props: ProjectorData) {
           style={{ marginTop: pu(0.2) }}
         >
           <div className="relative h-full" style={{ maxHeight: pu(DIAL_SIZE), aspectRatio: '1' }}>
-            {/* The ring means "time is going", so none of it is drawn unless the
-              clock is actually counting. Its box stays either way, which is
-              what keeps the countdown in the same place on the screen when a
-              tournament is paused. */}
-            {m.isRunning && (
+            {/* The ring means "a level is draining", so it is drawn only when one
+              is: not while the clock is halted, and not on a break, which is
+              time off rather than time running out — a break shows its name and
+              the countdown back, nothing else. Its box stays in every case,
+              which is what keeps the countdown from moving on the screen as the
+              tournament passes through them. */}
+            {m.isRunning && !m.isBreak && (
               <svg
                 viewBox="0 0 320 320"
                 className="absolute inset-0 size-full"

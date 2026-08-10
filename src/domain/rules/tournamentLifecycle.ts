@@ -1,5 +1,6 @@
-import type { BlindLevel, BlindStructure, TournamentConfig } from '../entities';
-import { isClockFinished } from './blindProgression';
+import type { BlindLevel, BlindStructure, ClockState, TournamentConfig } from '../entities';
+import { createClockState, isClockFinished } from './blindProgression';
+import type { TournamentSchedule } from './tournamentSchedule';
 
 /** New tournaments — and any tournament that's just been stopped — start with this many buy-ins already counted. */
 export const DEFAULT_ENTRANT_COUNT = 5;
@@ -11,6 +12,16 @@ export function startTournament(tournament: TournamentConfig): TournamentConfig 
 
 export function openRegistration(tournament: TournamentConfig): TournamentConfig {
   return { ...tournament, status: 'registering' };
+}
+
+export function scheduledClockState(
+  schedule: TournamentSchedule,
+  nowMs: number,
+): ClockState | null {
+  if (!schedule.tournamentStartAt) return null;
+  const startAt = Date.parse(schedule.tournamentStartAt);
+  if (Number.isNaN(startAt) || nowMs < startAt) return null;
+  return createClockState(startAt);
 }
 
 /**
