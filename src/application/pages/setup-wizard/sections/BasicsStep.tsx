@@ -1,7 +1,6 @@
 import type { Currency } from '@domain/entities';
 import type { TournamentDraft } from '@domain/rules/tournamentDraft';
 import {
-  formatRegistrationEnd,
   scheduleLocalToIso,
   scheduleNowLocal,
   validateSchedule,
@@ -39,11 +38,6 @@ export default function BasicsStep({
   const earliest = scheduleNowLocal(Date.now());
   const earliestStart =
     draft.registrationStart > earliest ? draft.registrationStart : earliest;
-
-  const regEndPreview = formatRegistrationEnd(
-    Number(draft.lateRegLevel) || undefined,
-    draft.regEndTime,
-  );
 
   return (
     <>
