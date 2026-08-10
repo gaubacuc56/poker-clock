@@ -39,6 +39,8 @@ export default function BasicsStep({
   const earliestStart =
     draft.registrationStart > earliest ? draft.registrationStart : earliest;
 
+  const regEndFilled = Boolean(draft.lateRegLevel || draft.regEndTime);
+
   return (
     <>
       {/* One field per row at every width — the basics step reads
@@ -149,7 +151,24 @@ export default function BasicsStep({
           enforces cannot disagree. */}
       <div className="card mt-4 gap-2.5">
         <div>
-          <span className="field-label">Reg end</span>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="field-label">Reg end</span>
+            {/* Both halves are optional, and a time input has no way to be
+                emptied from its own picker — so clearing them is offered here,
+                and only while there is something to clear. */}
+            {regEndFilled && (
+              <button
+                type="button"
+                className="btn btn-quiet mb-1 px-2 py-0.5 text-[16px]"
+                onClick={() => {
+                  onChange('lateRegLevel', '');
+                  onChange('regEndTime', '');
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <label className="block min-w-0">
               <span className="mb-1 block text-[15px] text-faint">Level</span>
