@@ -20,6 +20,20 @@ export function formatAmount(cents: number): string {
   return formatNumber(fromCents(cents), { maximumFractionDigits: 2 });
 }
 
+/**
+ * A buy-in/re-buy price in the same notation the blinds use: grouped digits up
+ * to 99,999, then "100K", "1M5" and so on.
+ *
+ * Below the compact threshold this is exactly {@link formatAmount}, cents and
+ * all — a 12.50 buy-in still reads as "12.5". Above it, whole chips are all
+ * that is left anyway, and a price sitting beside "10K / 20K" blinds on a
+ * projector should be read the same way from the back of the room.
+ */
+export function formatCompactAmount(cents: number): string {
+  const value = fromCents(cents);
+  return Math.abs(value) < 100_000 ? formatAmount(cents) : formatCompactNumber(value);
+}
+
 /** Amount with its currency unit — for prize pool/payout money only. */
 export function formatMoney(cents: number, currency?: CurrencyUnit): string {
   if (currency) return `${formatAmount(cents)} ${currency}`;

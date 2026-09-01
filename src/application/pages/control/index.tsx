@@ -29,10 +29,12 @@ import {
   stopTournament,
 } from "@domain/rules/tournamentLifecycle";
 import {
+  canOpenRegistration,
   formatScheduleMoment,
   getRegistrationWindow,
-  getSchedulePhase,
+  REGISTRATION_LEAD_HOURS,
   scheduleOccurrence,
+  secondsUntilRegistrationCanOpen,
 } from "@domain/rules/tournamentSchedule";
 import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
 import { DEFAULT_CURRENCY } from "@domain/constants/tournament";
@@ -50,6 +52,7 @@ import BarTitle from "@application/components/template/TopBar/sections/BarTitle"
 import TournamentDock from "@application/components/template/TournamentDock";
 import Toast from "@application/components/ui/Toast";
 import ConfirmDialog from "@application/components/ui/ConfirmDialog";
+import Spinner from "@application/components/ui/Spinner";
 import ClockDial from "@application/components/shared/ClockDial";
 import {
   CameraIcon,
@@ -57,6 +60,7 @@ import {
   ChevronRightIcon,
   LinkIcon,
   PauseIcon,
+  PlayersIcon,
   PlayIcon,
   ResetIcon,
   SpeakerIcon,
@@ -69,7 +73,7 @@ import ProjectorCaptureFrame, {
 } from "@application/components/template/ProjectorCaptureFrame";
 import BlindStat from "./sections/BlindStat";
 import PageShell from "./sections/PageShell";
-import { LEVEL_PILL_CLASSES, TIME_ADJUSTMENTS } from "./constants";
+import { LEVEL_PILL_CLASSES, REGISTRATION_HINT_SECONDS, TIME_ADJUSTMENTS } from "./constants";
 
 export default function ControlPage() {
   const { id } = useParams<{ id: string }>();
@@ -78,6 +82,7 @@ export default function ControlPage() {
     id ? state.getById(id) : undefined,
   );
   const saveTournament = useTournamentStore((state) => state.save);
+  const loadTournaments = useTournamentStore((state) => state.load);
 
   const history = useClockStore((state) => state.history);
   const isMuted = useClockStore((state) => state.isMuted);
@@ -92,6 +97,7 @@ export default function ControlPage() {
 
   const { stop: stopClock } = useClockSyncControl(id);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [confirmingStop, setConfirmingStop] = useState(false);
   const captureFrameRef = useRef<ProjectorCaptureFrameHandle>(null);
   const { toastMessage, showToast } = useToast();
@@ -159,10 +165,21 @@ export default function ControlPage() {
   // from the start time, so it is already running on the TV before anyone opens
   // the app — which is the only way a scheduled start is any use.
   //
-  // What is left for this screen is bookkeeping, and both halves are idempotent:
-  // adopt the derived clock into a real row, so the operator's own controls
-  // (pause, jump, adjust) have something to write to and the run survives a
-  // reload; and record the status the dashboard reads.
+  // What is left for this screen is bookkeeping, and it is idempotent: adopt the
+  // derived clock into a real row, so the operator's own controls (pause, jump,
+  // adjust) have something to write to and the run survives a reload, and record
+  // the status the dashboard reads.
+  //
+  // Registration is deliberately not part of this. It used to open itself the
+  // moment a scheduled instant passed; it is now something the operator does,
+  // below, so nothing here writes 'registering'.
+  // The tournament this screen is about. Nothing else is fetched here — the
+  // clock is its own subscription, and the projector resolves its background by
+  // URL rather than through the image list.
+  useEffect(() => {
+    void loadTournaments();
+  }, [loadTournaments]);
+
   useEffect(() => {
     if (!tournament || !id) return;
 
@@ -171,14 +188,6 @@ export default function ControlPage() {
       // rewind the countdown the room has been watching.
       start(id, clock.levelStartedAtEpochMs);
       void saveTournament(startTournament(tournament));
-      return;
-    }
-    if (
-      !clock &&
-      tournament.status === "setup" &&
-      getSchedulePhase(tournament, now) === "registering"
-    ) {
-      void saveTournament(openRegistration(tournament));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now]);
@@ -204,8 +213,18 @@ export default function ControlPage() {
 
   const registration = clock ? undefined : getRegistrationWindow(tournament, now);
   const upcoming = clock ? undefined : scheduleOccurrence(tournament, now);
-  const opensAt = formatScheduleMoment(upcoming?.registrationStartAt);
   const startsAt = formatScheduleMoment(upcoming?.tournamentStartAt);
+  // Offered only inside the lead window, and only while the doors are still
+  // shut — a countdown already running has nothing left to open.
+  const canOpenRegistrationNow =
+    !clock && !registration && canOpenRegistration(tournament, now);
+  const secondsUntilCanOpen = clock
+    ? null
+    : secondsUntilRegistrationCanOpen(tournament, now);
+  // Counted down only once it is worth counting. Days out, the figure is noise
+  // beside the "Next session" slab, which already says when the night is.
+  const showRegistrationCountdown =
+    secondsUntilCanOpen != null && secondsUntilCanOpen <= REGISTRATION_HINT_SECONDS;
 
   const prizePool = calculatePrizePoolForTournament(tournament);
   const priceLine = formatEntryPriceSummary(getEntryPriceLines(tournament));
@@ -224,9 +243,27 @@ export default function ControlPage() {
   } = buildControlLabels(structure, currentLevel, secondsRemaining, clock?.isPaused ?? false);
 
   async function handleStart() {
-    if (!id) return;
+    if (!id || isStarting) return;
+
+    setIsStarting(true);
+    try {
+      await saveTournament(startTournament(tournament!));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Could not start the tournament.");
+      return;
+    } finally {
+      setIsStarting(false);
+    }
+
     start(id, Date.now());
-    await saveTournament(startTournament(tournament!));
+  }
+
+  async function handleOpenRegistration() {
+    try {
+      await saveTournament(openRegistration(tournament!, new Date().toISOString()));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Could not open registration.");
+    }
   }
 
   async function handleConfirmStop() {
@@ -286,15 +323,9 @@ export default function ControlPage() {
             {registration ? (
               <>
                 <p className="kicker text-status-registering text-2xl font-bold">Registering</p>
-                {registration.secondsRemaining != null ? (
-                  <p className="engrave display text-[52px] tabular-nums">
-                    {formatDurationHMS(registration.secondsRemaining)}
-                  </p>
-                ) : (
-                  <p className="text-[18px] text-muted">
-                    Start the tournament when you're ready.
-                  </p>
-                )}
+                <p className="engrave display text-[52px] tabular-nums">
+                  {formatDurationHMS(registration.secondsRemaining)}
+                </p>
               </>
             ) : (
               <p className="display text-[29px] text-muted">Ready when you are.</p>
@@ -304,31 +335,41 @@ export default function ControlPage() {
                 in. While registering this is tonight's own start time; before
                 that it is the next evening the schedule fires — tomorrow for a
                 dated one, the next chosen weekday for a weekly one. */}
-            {(opensAt || startsAt) && (
+            {startsAt && (
               <div className="slab flex flex-col gap-2 rounded-2xl px-5 py-4">
                 <span className="kicker text-[16px]">
                   {registration ? 'This session' : 'Next session'}
                 </span>
-                {opensAt && (
-                  <div className="flex items-baseline justify-between gap-6">
-                    <span className="text-[18px] text-muted">Registration</span>
-                    <span className="engrave display text-[19px] tabular-nums">{opensAt}</span>
-                  </div>
-                )}
-                {startsAt && (
-                  <div className="flex items-baseline justify-between gap-6">
-                    <span className="text-[18px] text-muted">Start</span>
-                    <span className="engrave display text-[19px] tabular-nums">{startsAt}</span>
-                  </div>
-                )}
+                <div className="flex items-baseline justify-between gap-6">
+                  <span className="text-[18px] text-muted">Start</span>
+                  <span className="engrave display text-[19px] tabular-nums">{startsAt}</span>
+                </div>
               </div>
             )}
+
+            {canOpenRegistrationNow && (
+              <button
+                type="button"
+                className="btn btn-secondary h-12 px-[26px] text-[19px]"
+                onClick={handleOpenRegistration}
+              >
+                <PlayersIcon className="size-[18px]" />
+                Open registration
+              </button>
+            )}
+            {showRegistrationCountdown && (
+              <p className="text-center text-xl text-faint">
+                Registration can be opened {REGISTRATION_LEAD_HOURS} hours before the start.
+              </p>
+            )}
+
             <button
               type="button"
               className="btn btn-primary h-14 px-[30px] text-[20px]"
               onClick={handleStart}
+              disabled={isStarting}
             >
-              <PlayIcon className="size-[18px]" />
+              {isStarting ? <Spinner /> : <PlayIcon className="size-[18px]" />}
               Start Tournament
             </button>
           </div>
@@ -560,8 +601,8 @@ export default function ControlPage() {
         title={isFinished ? "Reset tournament?" : "Stop tournament?"}
         message={
           isFinished
-            ? "The clock returns to Level 1 and player counters are cleared. The blind structure is kept."
-            : "The live clock is cleared on every screen, including the projector, and counters are reset. Stopping means starting over, not pausing."
+            ? "The clock returns to Level 1, and player counters and payouts are cleared. The blind structure is kept."
+            : "The live clock is cleared on every screen, including the projector, and counters and payouts are reset. Stopping means starting over, not pausing."
         }
         confirmLabel={isFinished ? "Reset" : "Stop"}
         tone={isFinished ? "primary" : "danger"}

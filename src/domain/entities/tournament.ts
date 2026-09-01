@@ -73,17 +73,21 @@ export interface TournamentConfig {
   /** Which arrangement the TV draws. Absent = 'classic', the only layout before this shipped. */
   projectorLayout?: ProjectorLayout;
   /**
-   * The schedule. `once` uses the two instants; `weekly` uses the days and times
-   * of day and works the instants out per occurrence. See
+   * The schedule. `once` uses the instant; `weekly` uses the days and the time
+   * of day and works the instant out per occurrence. See
    * `domain/rules/tournamentSchedule` — nothing outside it reads these directly.
    */
   scheduleRepeat?: ScheduleRepeat;
-  registrationStartAt?: string;
   tournamentStartAt?: string;
   scheduleWeekdays?: number[];
-  registrationTime?: string;
   startTime?: string;
   scheduleDismissedAt?: string;
+  /**
+   * When the operator opened the registration countdown, if they have. There is
+   * no scheduled registration start any more — the doors open when somebody
+   * opens them, within `REGISTRATION_LEAD_HOURS` of the start.
+   */
+  registrationOpenedAt?: string;
   /**
    * The wall-clock time `lateRegLevel` is expected at, as `HH:mm` — the other
    * half of the projector's "Reg End" announcement. A time of day with no date:

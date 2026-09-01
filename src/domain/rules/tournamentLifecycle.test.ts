@@ -3,6 +3,7 @@ import {
   DEFAULT_ENTRANT_COUNT,
   hasTournamentStarted,
   isTournamentInPlay,
+  openRegistration,
   scheduledClockState,
   startTournament,
   stopTournament,
@@ -65,9 +66,10 @@ describe('scheduledClockState', () => {
 
   it('is null when the tournament is started by hand', () => {
     expect(scheduledClockState({}, at('2026-08-10T14:00:00Z'))).toBeNull();
+    // Opening the doors is not a start: it schedules nothing.
     expect(
       scheduledClockState(
-        { registrationStartAt: '2026-08-10T12:00:00.000Z' },
+        { registrationOpenedAt: '2026-08-10T12:00:00.000Z' },
         at('2026-08-10T14:00:00Z'),
       ),
     ).toBeNull();
@@ -86,7 +88,6 @@ describe('scheduledClockState', () => {
     const weekly = makeTournament({
       scheduleRepeat: 'weekly',
       scheduleWeekdays: [1],
-      registrationTime: '19:00',
       startTime: '20:00',
     });
     const clock = scheduledClockState(weekly, at('2026-08-10T14:00:00Z'));
@@ -97,7 +98,6 @@ describe('scheduledClockState', () => {
     const weekly = makeTournament({
       scheduleRepeat: 'weekly',
       scheduleWeekdays: [1],
-      registrationTime: '19:00',
       startTime: '20:00',
       status: 'running',
     });
@@ -158,7 +158,26 @@ describe('stopTournament', () => {
       eliminatedCount: 0,
       rebuyCount: 0,
       addOnCount: 7,
+      payoutTiers: [],
+      payoutUnit: undefined,
+      registrationOpenedAt: undefined,
+      tournamentStartAt: undefined,
     });
+  });
+
+  it('clears the payouts, the same as Clear all on the payouts step', () => {
+    const tournament = makeTournament({
+      status: 'running',
+      payoutTiers: [
+        { position: 1, value: 60 },
+        { position: 2, value: 40, note: '1 ticket happy hour' },
+      ],
+      payoutUnit: 'amount',
+    });
+
+    const stopped = stopTournament(tournament, STOPPED_AT);
+    expect(stopped.payoutTiers).toEqual([]);
+    expect(stopped.payoutUnit).toBeUndefined();
   });
 
   it('leaves add-on count untouched', () => {
@@ -166,15 +185,43 @@ describe('stopTournament', () => {
     expect(stopTournament(tournament, STOPPED_AT).addOnCount).toBe(9);
   });
 
-  it('drops the schedule, so a live registration window cannot reopen', () => {
+  it('drops the schedule, so the tournament cannot start itself again', () => {
     const tournament = makeTournament({
       status: 'running',
-      registrationStartAt: '2026-08-10T12:00:00.000Z',
       tournamentStartAt: '2026-08-10T13:00:00.000Z',
     });
-    const stopped = stopTournament(tournament, STOPPED_AT);
 
-    expect(stopped.registrationStartAt).toBeUndefined();
-    expect(stopped.tournamentStartAt).toBeUndefined();
+    expect(stopTournament(tournament, STOPPED_AT).tournamentStartAt).toBeUndefined();
+  });
+
+  it('closes the doors, on both kinds of schedule', () => {
+    const dated = makeTournament({
+      status: 'running',
+      tournamentStartAt: '2026-08-10T13:00:00.000Z',
+      registrationOpenedAt: '2026-08-10T12:00:00.000Z',
+    });
+    expect(stopTournament(dated, STOPPED_AT).registrationOpenedAt).toBeUndefined();
+
+    const weekly = makeTournament({
+      status: 'running',
+      scheduleRepeat: 'weekly',
+      scheduleWeekdays: [1],
+      startTime: '20:00',
+      registrationOpenedAt: '2026-08-10T12:00:00.000Z',
+    });
+    expect(stopTournament(weekly, STOPPED_AT).registrationOpenedAt).toBeUndefined();
+  });
+});
+
+describe('openRegistration', () => {
+  const OPENED_AT = '2026-08-10T12:00:00.000Z';
+
+  it('records the instant the operator opened the doors', () => {
+    const tournament = makeTournament({ status: 'setup' });
+    expect(openRegistration(tournament, OPENED_AT)).toEqual({
+      ...tournament,
+      status: 'registering',
+      registrationOpenedAt: OPENED_AT,
+    });
   });
 });

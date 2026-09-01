@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canOpenRegistration,
   formatRegistrationEnd,
   formatScheduleMoment,
   formatScheduleTime,
   getRegistrationWindow,
   getSchedulePhase,
+  REGISTRATION_LEAD_HOURS,
   scheduleOccurrence,
   scheduleIsoToLocal,
   scheduleLocalToIso,
   scheduleNowLocal,
+  secondsUntilRegistrationCanOpen,
   validateSchedule,
 } from './tournamentSchedule';
 
@@ -119,74 +122,119 @@ describe('formatRegistrationEnd', () => {
 });
 
 describe('getSchedulePhase', () => {
-  const registrationStartAt = '2026-08-10T12:00:00.000Z';
   const tournamentStartAt = '2026-08-10T13:00:00.000Z';
   const at = (iso: string) => Date.parse(iso);
+  /** Inside the lead window, so opening it would have been allowed. */
+  const openedAt = '2026-08-10T09:00:00.000Z';
 
-  it('is unscheduled when neither time was set', () => {
+  it('is unscheduled when no start was set', () => {
     expect(getSchedulePhase({}, at('2026-08-10T12:30:00Z'))).toBe('unscheduled');
-  });
-
-  it('waits until the registration window opens', () => {
-    expect(
-      getSchedulePhase({ registrationStartAt, tournamentStartAt }, at('2026-08-10T11:59:59Z')),
-    ).toBe('waiting');
-  });
-
-  it('registers from the moment registration opens', () => {
-    expect(
-      getSchedulePhase({ registrationStartAt, tournamentStartAt }, at(registrationStartAt)),
-    ).toBe('registering');
-  });
-
-  it('stays registering right up to the start', () => {
-    expect(
-      getSchedulePhase({ registrationStartAt, tournamentStartAt }, at('2026-08-10T12:59:59Z')),
-    ).toBe('registering');
-  });
-
-  it('is due from the start time onwards', () => {
-    expect(
-      getSchedulePhase({ registrationStartAt, tournamentStartAt }, at(tournamentStartAt)),
-    ).toBe('start-due');
-  });
-
-  it('keeps registering indefinitely when no start time was set', () => {
-    expect(getSchedulePhase({ registrationStartAt }, at('2030-01-01T00:00:00Z'))).toBe(
-      'registering',
+    // Doors opened against nothing is still nothing: without a start there is
+    // no occurrence for the stamp to belong to.
+    expect(getSchedulePhase({ registrationOpenedAt: openedAt }, at('2026-08-10T12:30:00Z'))).toBe(
+      'unscheduled',
     );
   });
 
-  it('reaches start-due even with no registration window in front of it', () => {
+  it('waits while the doors are shut, however close the start is', () => {
+    expect(getSchedulePhase({ tournamentStartAt }, at('2026-08-10T12:59:59Z'))).toBe('waiting');
+  });
+
+  it('registers once the operator has opened the doors', () => {
+    expect(
+      getSchedulePhase({ tournamentStartAt, registrationOpenedAt: openedAt }, at('2026-08-10T12:30:00Z')),
+    ).toBe('registering');
+  });
+
+  it('is due from the start time onwards, doors open or not', () => {
     expect(getSchedulePhase({ tournamentStartAt }, at(tournamentStartAt))).toBe('start-due');
-    expect(getSchedulePhase({ tournamentStartAt }, at('2026-08-10T12:00:00Z'))).toBe('waiting');
+    expect(
+      getSchedulePhase({ tournamentStartAt, registrationOpenedAt: openedAt }, at(tournamentStartAt)),
+    ).toBe('start-due');
+  });
+
+  it('ignores a stamp from before the lead window — it opened a different night', () => {
+    const stale = {
+      tournamentStartAt,
+      registrationOpenedAt: '2026-08-03T09:00:00.000Z',
+    };
+    expect(getSchedulePhase(stale, at('2026-08-10T12:30:00Z'))).toBe('waiting');
+  });
+});
+
+describe('canOpenRegistration', () => {
+  const tournamentStartAt = '2026-08-10T13:00:00.000Z';
+  const at = (iso: string) => Date.parse(iso);
+  /** The lead window opens exactly this many hours before the start. */
+  const leadOpensAt = '2026-08-10T07:00:00.000Z';
+
+  it('is refused with nothing to count down to', () => {
+    expect(canOpenRegistration({}, at('2026-08-10T12:00:00Z'))).toBe(false);
+  });
+
+  it('is refused a second too early, and allowed on the hour', () => {
+    expect(canOpenRegistration({ tournamentStartAt }, at('2026-08-10T06:59:59Z'))).toBe(false);
+    expect(canOpenRegistration({ tournamentStartAt }, at(leadOpensAt))).toBe(true);
+  });
+
+  it('stays allowed right up to the start, and is refused from it', () => {
+    expect(canOpenRegistration({ tournamentStartAt }, at('2026-08-10T12:59:59Z'))).toBe(true);
+    expect(canOpenRegistration({ tournamentStartAt }, at(tournamentStartAt))).toBe(false);
+  });
+
+  it('is exactly the documented lead time', () => {
+    const startAt = at(tournamentStartAt);
+    expect(startAt - at(leadOpensAt)).toBe(REGISTRATION_LEAD_HOURS * 3_600_000);
+  });
+});
+
+describe('secondsUntilRegistrationCanOpen', () => {
+  const tournamentStartAt = '2026-08-10T13:00:00.000Z';
+  const at = (iso: string) => Date.parse(iso);
+
+  it('counts down to the moment the button appears', () => {
+    expect(
+      secondsUntilRegistrationCanOpen({ tournamentStartAt }, at('2026-08-10T06:00:00Z')),
+    ).toBe(3600);
+  });
+
+  it('is null once it may be opened, and with nothing scheduled', () => {
+    expect(
+      secondsUntilRegistrationCanOpen({ tournamentStartAt }, at('2026-08-10T08:00:00Z')),
+    ).toBeNull();
+    expect(secondsUntilRegistrationCanOpen({}, at('2026-08-10T08:00:00Z'))).toBeNull();
   });
 });
 
 describe('getRegistrationWindow', () => {
-  const registrationStartAt = '2026-08-10T12:00:00.000Z';
   const tournamentStartAt = '2026-08-10T13:00:00.000Z';
+  const registrationOpenedAt = '2026-08-10T12:00:00.000Z';
 
-  it('counts down to the start and reports how much of the window has gone', () => {
-    const window = getRegistrationWindow(
-      { registrationStartAt, tournamentStartAt },
-      Date.parse('2026-08-10T12:45:00Z'),
-    );
-    expect(window).toEqual({ secondsRemaining: 900, elapsedFraction: 0.75 });
-  });
-
-  it('has no countdown when no start time was set', () => {
-    const window = getRegistrationWindow(
-      { registrationStartAt },
-      Date.parse('2026-08-10T12:45:00Z'),
-    );
-    expect(window).toEqual({ secondsRemaining: null, elapsedFraction: 0 });
-  });
-
-  it('is absent outside the registration window', () => {
+  it('counts from when the doors opened, not from a scheduled window', () => {
     expect(
       getRegistrationWindow(
-        { registrationStartAt, tournamentStartAt },
+        { tournamentStartAt, registrationOpenedAt },
+        Date.parse('2026-08-10T12:45:00Z'),
+      ),
+    ).toEqual({ secondsRemaining: 900, elapsedFraction: 0.75 });
+  });
+
+  it('starts empty: opening it later makes the bar shorter, not fuller', () => {
+    expect(
+      getRegistrationWindow(
+        { tournamentStartAt, registrationOpenedAt: '2026-08-10T12:50:00.000Z' },
+        Date.parse('2026-08-10T12:50:00Z'),
+      ),
+    ).toEqual({ secondsRemaining: 600, elapsedFraction: 0 });
+  });
+
+  it('is absent while the doors are shut, and once the start has come', () => {
+    expect(
+      getRegistrationWindow({ tournamentStartAt }, Date.parse('2026-08-10T12:45:00Z')),
+    ).toBeUndefined();
+    expect(
+      getRegistrationWindow(
+        { tournamentStartAt, registrationOpenedAt },
         Date.parse('2026-08-10T13:00:00Z'),
       ),
     ).toBeUndefined();
@@ -195,34 +243,30 @@ describe('getRegistrationWindow', () => {
 });
 
 describe('scheduleOccurrence — weekly', () => {
-  // 2026-08-10 is a Monday in UTC+7. 19:00/20:00 there are 12:00/13:00 UTC.
+  // 2026-08-10 is a Monday in UTC+7. 20:00 there is 13:00 UTC.
   const friday = 5;
   const monday = 1;
   const weekly = {
     scheduleRepeat: 'weekly' as const,
     scheduleWeekdays: [monday],
-    registrationTime: '19:00',
     startTime: '20:00',
   };
   const at = (iso: string) => Date.parse(iso);
 
   it('resolves tonight while it is on', () => {
-    expect(scheduleOccurrence(weekly, at('2026-08-10T12:30:00Z'))).toEqual({
-      registrationStartAt: '2026-08-10T12:00:00.000Z',
+    expect(scheduleOccurrence(weekly, at('2026-08-10T13:30:00Z'))).toEqual({
       tournamentStartAt: '2026-08-10T13:00:00.000Z',
     });
   });
 
   it('keeps resolving tonight after its start, so the result stays up', () => {
     expect(scheduleOccurrence(weekly, at('2026-08-11T04:00:00Z'))).toEqual({
-      registrationStartAt: '2026-08-10T12:00:00.000Z',
       tournamentStartAt: '2026-08-10T13:00:00.000Z',
     });
   });
 
-  it('announces tonight a minute before it opens, not last week', () => {
-    expect(scheduleOccurrence(weekly, at('2026-08-10T11:59:00Z'))).toEqual({
-      registrationStartAt: '2026-08-10T12:00:00.000Z',
+  it('announces tonight a minute before it starts, not last week', () => {
+    expect(scheduleOccurrence(weekly, at('2026-08-10T12:59:00Z'))).toEqual({
       tournamentStartAt: '2026-08-10T13:00:00.000Z',
     });
   });
@@ -231,7 +275,6 @@ describe('scheduleOccurrence — weekly', () => {
     // Wednesday: Monday's night is long over, so the coming Monday is what
     // there is to say — not a three-day-old result.
     expect(scheduleOccurrence(weekly, at('2026-08-12T09:00:00Z'))).toEqual({
-      registrationStartAt: '2026-08-17T12:00:00.000Z',
       tournamentStartAt: '2026-08-17T13:00:00.000Z',
     });
   });
@@ -239,16 +282,15 @@ describe('scheduleOccurrence — weekly', () => {
   it('skips a dismissed night and moves to the next one', () => {
     const dismissed = { ...weekly, scheduleDismissedAt: '2026-08-10T14:00:00.000Z' };
     expect(scheduleOccurrence(dismissed, at('2026-08-10T15:00:00Z'))).toEqual({
-      registrationStartAt: '2026-08-17T12:00:00.000Z',
       tournamentStartAt: '2026-08-17T13:00:00.000Z',
     });
   });
 
   it('picks the nearest of several days', () => {
     const twoNights = { ...weekly, scheduleWeekdays: [monday, friday] };
-    // Saturday: Friday's night is the most recent one that opened.
-    expect(scheduleOccurrence(twoNights, at('2026-08-15T09:00:00Z')).registrationStartAt).toBe(
-      '2026-08-14T12:00:00.000Z',
+    // Saturday: Friday's night is the most recent one that started.
+    expect(scheduleOccurrence(twoNights, at('2026-08-15T09:00:00Z')).tournamentStartAt).toBe(
+      '2026-08-14T13:00:00.000Z',
     );
   });
 
@@ -261,22 +303,38 @@ describe('scheduleOccurrence — weekly', () => {
 
   it('drives the phase the same way a dated schedule does', () => {
     expect(getSchedulePhase(weekly, at('2026-08-10T11:00:00Z'))).toBe('waiting');
-    expect(getSchedulePhase(weekly, at('2026-08-10T12:30:00Z'))).toBe('registering');
+    expect(
+      getSchedulePhase(
+        { ...weekly, registrationOpenedAt: '2026-08-10T09:00:00.000Z' },
+        at('2026-08-10T12:30:00Z'),
+      ),
+    ).toBe('registering');
     expect(getSchedulePhase(weekly, at('2026-08-10T13:30:00Z'))).toBe('start-due');
   });
 
-  it('counts down to tonight’s start', () => {
-    expect(getRegistrationWindow(weekly, at('2026-08-10T12:45:00Z'))).toEqual({
-      secondsRemaining: 900,
-      elapsedFraction: 0.75,
-    });
+  it('offers the doors for tonight from six hours out', () => {
+    expect(canOpenRegistration(weekly, at('2026-08-10T06:59:00Z'))).toBe(false);
+    expect(canOpenRegistration(weekly, at('2026-08-10T07:00:00Z'))).toBe(true);
+  });
+
+  it('starts next week closed, without the stamp needing to be cleared', () => {
+    // Last Monday's doors were opened; the occurrence in play is next Monday's,
+    // and a stamp seven days old cannot have opened it.
+    const lastWeek = { ...weekly, registrationOpenedAt: '2026-08-10T09:00:00.000Z' };
+    expect(getSchedulePhase(lastWeek, at('2026-08-17T09:00:00Z'))).toBe('waiting');
+  });
+
+  it('counts down to tonight’s start once opened', () => {
+    expect(
+      getRegistrationWindow(
+        { ...weekly, registrationOpenedAt: '2026-08-10T12:00:00.000Z' },
+        at('2026-08-10T12:45:00Z'),
+      ),
+    ).toEqual({ secondsRemaining: 900, elapsedFraction: 0.75 });
   });
 
   it('leaves a dated schedule resolving to itself', () => {
-    const once = {
-      registrationStartAt: '2026-08-10T12:00:00.000Z',
-      tournamentStartAt: '2026-08-10T13:00:00.000Z',
-    };
+    const once = { tournamentStartAt: '2026-08-10T13:00:00.000Z' };
     expect(scheduleOccurrence(once, at('2026-08-10T12:30:00Z'))).toEqual(once);
   });
 });
@@ -297,90 +355,32 @@ describe('validateSchedule — weekly', () => {
     );
   });
 
-  it('applies the same two rules to the times of day', () => {
-    const set = (registrationTime: string, startTime: string) =>
-      validateSchedule({ ...weekly, scheduleWeekdays: [5], registrationTime, startTime });
-
-    expect(set('19:00', '20:00')).toBeNull();
-    expect(set('20:00', '19:00')).toBe('Tournament start must be after registration start.');
-    expect(set('20:00', '20:00')).toBe('Tournament start must be after registration start.');
-    expect(set('03:00', '20:00')).toBe(
-      'Tournament start must be within 16 hours of registration start.',
-    );
+  it('accepts a complete arrangement', () => {
+    expect(validateSchedule({ ...weekly, scheduleWeekdays: [5], startTime: '20:00' })).toBeNull();
   });
 });
 
 describe('validateSchedule', () => {
-  it('accepts a start after the registration opens', () => {
-    expect(
-      validateSchedule({
-        registrationStartAt: '2026-08-10T12:00:00Z',
-        tournamentStartAt: '2026-08-10T13:00:00Z',
-      }),
-    ).toBeNull();
+  it('has nothing to check on a tournament with no schedule', () => {
+    expect(validateSchedule({})).toBeNull();
   });
 
-  it('rejects a start at or before the registration opens', () => {
-    expect(
-      validateSchedule({
-        registrationStartAt: '2026-08-10T13:00:00Z',
-        tournamentStartAt: '2026-08-10T12:00:00Z',
-      }),
-    ).toBe('Tournament start must be after registration start.');
-    expect(
-      validateSchedule({
-        registrationStartAt: '2026-08-10T13:00:00Z',
-        tournamentStartAt: '2026-08-10T13:00:00Z',
-      }),
-    ).toBe('Tournament start must be after registration start.');
-  });
-
-  it('accepts a window of exactly the maximum', () => {
-    expect(
-      validateSchedule({
-        registrationStartAt: '2026-08-10T12:00:00Z',
-        tournamentStartAt: '2026-08-11T04:00:00Z',
-      }),
-    ).toBeNull();
-  });
-
-  it('rejects a window longer than the maximum', () => {
-    expect(
-      validateSchedule({
-        registrationStartAt: '2026-08-10T12:00:00Z',
-        tournamentStartAt: '2026-08-11T04:00:01Z',
-      }),
-    ).toBe('Tournament start must be within 16 hours of registration start.');
-  });
-
-  it('rejects a moment already gone, but only when asked to check', () => {
-    const past = {
-      registrationStartAt: '2026-08-10T12:00:00Z',
-      tournamentStartAt: '2026-08-10T13:00:00Z',
-    };
-    const now = Date.parse('2026-08-10T12:30:00Z');
-
-    expect(validateSchedule(past, now)).toBe('The schedule cannot start in the past.');
-    // No `nowMs`: an existing tournament can be re-read and re-saved without its
-    // own history failing validation.
-    expect(validateSchedule(past)).toBeNull();
-  });
-
-  it('accepts a schedule still ahead of now', () => {
+  it('accepts a start still ahead of now', () => {
     expect(
       validateSchedule(
-        {
-          registrationStartAt: '2026-08-10T12:00:00Z',
-          tournamentStartAt: '2026-08-10T13:00:00Z',
-        },
+        { tournamentStartAt: '2026-08-10T13:00:00Z' },
         Date.parse('2026-08-10T11:00:00Z'),
       ),
     ).toBeNull();
   });
 
-  it('has nothing to check when either half is missing', () => {
-    expect(validateSchedule({})).toBeNull();
-    expect(validateSchedule({ registrationStartAt: '2026-08-10T12:00:00Z' })).toBeNull();
-    expect(validateSchedule({ tournamentStartAt: '2026-08-10T12:00:00Z' })).toBeNull();
+  it('rejects a moment already gone, but only when asked to check', () => {
+    const past = { tournamentStartAt: '2026-08-10T13:00:00Z' };
+    const now = Date.parse('2026-08-10T14:00:00Z');
+
+    expect(validateSchedule(past, now)).toBe('The schedule cannot start in the past.');
+    // No `nowMs`: an existing tournament can be re-read and re-saved without its
+    // own history failing validation.
+    expect(validateSchedule(past)).toBeNull();
   });
 });

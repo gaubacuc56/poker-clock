@@ -1,6 +1,7 @@
 import type { Currency } from '@domain/entities';
 import type { TournamentDraft } from '@domain/rules/tournamentDraft';
 import {
+  REGISTRATION_LEAD_HOURS,
   scheduleLocalToIso,
   validateSchedule,
   WEEKDAY_LABELS,
@@ -33,10 +34,8 @@ export default function BasicsStep({
   const scheduleError = validateSchedule(
     {
       scheduleRepeat: draft.scheduleRepeat,
-      registrationStartAt: scheduleLocalToIso(draft.registrationStart),
       tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
       scheduleWeekdays: draft.scheduleWeekdays,
-      registrationTime: draft.registrationTime,
       startTime: draft.startTime,
     },
     scheduleLocked ? undefined : Date.now(),
@@ -64,8 +63,8 @@ export default function BasicsStep({
             onChange={(e) => onChange('currency', e.target.value)}
           >
             {currencies.map((currency) => (
-              <option key={currency.code} value={currency.code}>
-                {currency.label}
+              <option key={currency.id} value={currency.code}>
+                {currency.code}
               </option>
             ))}
           </select>
@@ -102,7 +101,7 @@ export default function BasicsStep({
             onChange={(e) => onChange('maxPlayersPerTable', e.target.value)}
           />
         </Field>
-        <Field label={`Guaranteed prize pool (${draft.currency}, optional)`}>
+        <Field label={`Guaranteed prize pool`}>
           <input
             type="number"
             className="input tabular-nums"
@@ -127,13 +126,6 @@ export default function BasicsStep({
 
         {draft.scheduleRepeat === 'once' ? (
           <>
-            <DateTimeField
-              label="Registration start"
-              value={draft.registrationStart}
-              disabled={scheduleLocked}
-              invalid={Boolean(scheduleError)}
-              onChange={(value) => onChange('registrationStart', value)}
-            />
             <DateTimeField
               label="Tournament start"
               value={draft.tournamentStart}
@@ -179,25 +171,14 @@ export default function BasicsStep({
                 })}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="min-w-0">
-                <span className="mb-1 block text-[15px] text-faint">Registration</span>
-                <TimeField
-                  value={draft.registrationTime}
-                  ariaLabel="Weekly registration time"
-                  invalid={Boolean(scheduleError)}
-                  onChange={(value) => onChange('registrationTime', value)}
-                />
-              </div>
-              <div className="min-w-0">
-                <span className="mb-1 block text-[15px] text-faint">Start</span>
-                <TimeField
-                  value={draft.startTime}
-                  ariaLabel="Weekly start time"
-                  invalid={Boolean(scheduleError)}
-                  onChange={(value) => onChange('startTime', value)}
-                />
-              </div>
+            <div className="max-w-[12rem] min-w-0">
+              <span className="mb-1 block text-[15px] text-faint">Start</span>
+              <TimeField
+                value={draft.startTime}
+                ariaLabel="Weekly start time"
+                invalid={Boolean(scheduleError)}
+                onChange={(value) => onChange('startTime', value)}
+              />
             </div>
           </>
         )}
@@ -208,19 +189,17 @@ export default function BasicsStep({
             {scheduleError}
           </p>
         )}
+
+        <p className="text-[16px] text-muted">
+          Registration is available {REGISTRATION_LEAD_HOURS}  hours before the tournament start.
+        </p>
       </div>
 
-      {/* One heading over both halves: the level and the time are two readings
-          of the same moment, not two settings. The level is the same number the
-          app closes late registration on, so the sign on the TV and the rule it
-          enforces cannot disagree. */}
+    
       <div className="card mt-4 gap-2.5">
         <div>
           <div className="flex items-baseline justify-between gap-3">
             <span className="field-label">Reg end</span>
-            {/* Both halves are optional, and a time input has no way to be
-                emptied from its own picker — so clearing them is offered here,
-                and only while there is something to clear. */}
             {regEndFilled && (
               <button
                 type="button"

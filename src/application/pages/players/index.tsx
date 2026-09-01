@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTournamentStore } from '@composition/container';
 import { calculatePrizePoolForTournament } from '@domain/rules/prizePool';
@@ -15,6 +16,20 @@ export default function PlayersPage() {
   const { id } = useParams<{ id: string }>();
   const tournament = useTournamentStore((state) => (id ? state.getById(id) : undefined));
   const saveTournament = useTournamentStore((state) => state.save);
+  const tournamentsLoaded = useTournamentStore((state) => state.isLoaded);
+  const loadTournaments = useTournamentStore((state) => state.load);
+
+  useEffect(() => {
+    void loadTournaments();
+  }, [loadTournaments]);
+
+  if (!tournamentsLoaded) {
+    return (
+      <Screen>
+        <div className="scroll felt grid place-items-center text-muted">Loading…</div>
+      </Screen>
+    );
+  }
 
   if (!tournament || !id) {
     return (

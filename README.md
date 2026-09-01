@@ -4,6 +4,8 @@
 
 Projector backgrounds are not part of this config — they're images uploaded to the `background/` folder of the Supabase Storage `media` bucket from the app's Settings page (see `supabase/SETUP.md`). A tournament's chosen background is stored as `projectorBackgroundId`, which holds that object's full in-bucket path (e.g. `background/uuid-name.jpg`).
 
+Since migration `0013`, backgrounds are private to the account that uploaded them, and how many an account may have is one of its plan's allowances — see Settings → Plan, and `supabase/SCHEMA.md`.
+
 ---
 
 # React + TypeScript + Vite

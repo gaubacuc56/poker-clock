@@ -1,10 +1,11 @@
 /**
- * When a tournament opens for registration and when it starts.
+ * When a tournament starts, and when the room may be told to start counting.
  *
- * Both are optional: a tournament with no schedule behaves exactly as it always
- * has — the admin starts it by hand. Setting them turns the projector into a
- * countdown board first and, when a start time is given, starts the clock on
- * its own.
+ * There is one configurable instant: the start. Registration used to be a second
+ * scheduled instant, which meant two times to keep correct and a board that
+ * opened itself whether or not anybody was there. It is now something the
+ * organiser does — see {@link canOpenRegistration} — and all that is stored is
+ * the moment they did it.
  */
 
 /**
@@ -18,14 +19,16 @@ export const SCHEDULE_UTC_OFFSET_MINUTES = 7 * 60;
 const OFFSET_MS = SCHEDULE_UTC_OFFSET_MINUTES * 60_000;
 
 /**
- * How long registration may stay open before the tournament starts. A window
- * longer than this is a mistyped date rather than a real plan — and it is worth
- * catching at setup, because the projector would otherwise sit on a countdown
- * measured in days.
+ * How long before the start the registration countdown may be opened.
+ *
+ * Before this, opening it is refused: a countdown measured in days is not a
+ * countdown, and a board that has been up since yesterday tells the room
+ * nothing. Inside it, opening is offered but nothing happens until the operator
+ * actually does it — the doors open when somebody opens them.
  */
-export const MAX_REGISTRATION_WINDOW_HOURS = 16;
+export const REGISTRATION_LEAD_HOURS = 6;
 
-const MAX_REGISTRATION_WINDOW_MS = MAX_REGISTRATION_WINDOW_HOURS * 60 * 60_000;
+const REGISTRATION_LEAD_MS = REGISTRATION_LEAD_HOURS * 60 * 60_000;
 
 /**
  * Whether the schedule describes one occurrence or repeats every week.
@@ -39,35 +42,46 @@ export type ScheduleRepeat = 'once' | 'weekly';
 export const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
- * When a tournament opens and starts, as stored.
+ * When a tournament starts, as stored, plus the record of registration having
+ * been opened.
  *
- * Two shapes behind one interface. A `once` schedule names two instants. A
- * `weekly` one names days of the week and two times of day, and the instants are
+ * Two shapes behind one interface. A `once` schedule names an instant. A
+ * `weekly` one names days of the week and a time of day, and the instant is
  * worked out per occurrence — the whole point being that a weekly schedule
  * survives the run it started, so an organiser sets Friday 19:00 once rather
  * than re-entering tomorrow's date every evening.
  *
- * Everything downstream reads only the resolved pair, via
+ * Everything downstream reads only the resolved instant, via
  * {@link scheduleOccurrence}, so the two shapes never have to be handled twice.
  */
 export interface TournamentSchedule {
   /** Absent = 'once'. */
   scheduleRepeat?: ScheduleRepeat;
 
-  /** `once`: the instants themselves. */
-  registrationStartAt?: string;
+  /** `once`: the instant itself. */
   tournamentStartAt?: string;
 
   /** `weekly`: which days it fires on (0 = Sunday … 6 = Saturday, in UTC+7). */
   scheduleWeekdays?: number[];
-  /** `weekly`: times of day in UTC+7, `HH:mm`, both on the same day. */
-  registrationTime?: string;
+  /** `weekly`: the time of day in UTC+7, `HH:mm`. */
   startTime?: string;
+
+  /**
+   * The instant the operator opened the registration countdown, or absent while
+   * it is still closed.
+   *
+   * An instant rather than a flag because it is also where the progress bar
+   * starts: the room's countdown runs from when the doors actually opened. It
+   * needs no clearing between weekly occurrences — a stamp older than
+   * {@link REGISTRATION_LEAD_HOURS} before the start in play cannot have opened
+   * that occurrence, so next week begins closed on its own.
+   */
+  registrationOpenedAt?: string;
 
   /**
    * The instant an occurrence was dismissed — Stop, on a weekly schedule.
    *
-   * Occurrences that opened at or before this are skipped and the next one still
+   * Occurrences that started at or before this are skipped and the next one still
    * fires: stopping ends tonight, not the arrangement. A weekly alarm cannot be
    * cleared by stopping it, because then it would not be an alarm; turning it
    * off means clearing its days in setup.
@@ -86,13 +100,9 @@ export type SchedulePhase = 'unscheduled' | 'waiting' | 'registering' | 'start-d
 
 /** The countdown a registering tournament shows, in the terms a screen draws. */
 export interface RegistrationWindow {
-  /**
-   * Seconds until the scheduled start, or `null` when no start time was given —
-   * registration then stays open until the admin starts the tournament, and
-   * there is no countdown to draw at all.
-   */
-  secondsRemaining: number | null;
-  /** 0…1 of the registration window already elapsed; 0 when open-ended. */
+  /** Seconds until the scheduled start. */
+  secondsRemaining: number;
+  /** 0…1 of the time between opening the doors and the start already elapsed. */
   elapsedFraction: number;
 }
 
@@ -197,9 +207,8 @@ export function formatScheduleTime(iso: string | undefined): string {
   return `${formatScheduleDate(date)} ${time}`;
 }
 
-/** The two instants of one occurrence, already resolved. */
+/** The instant of one occurrence, already resolved. */
 export interface ScheduleOccurrence {
-  registrationStartAt?: string;
   tournamentStartAt?: string;
 }
 
@@ -208,13 +217,13 @@ export interface ScheduleOccurrence {
 const WEEK_DAYS = 7;
 
 /**
- * How long an occurrence stays the current one after it opens.
+ * How long an occurrence stays the current one after it starts.
  *
  * Without a bound, a schedule with a single weekday would treat last week's
- * evening as current right up to tonight's registration time — the TV would sit
- * on a seven-day-old FINISHED instead of announcing the night to come. A day is
- * the right length: it covers a tournament that runs past midnight, and it is
- * over long before the next week comes round.
+ * evening as current right up to tonight — the TV would sit on a seven-day-old
+ * FINISHED instead of announcing the night to come. A day is the right length:
+ * it covers a tournament that runs past midnight, and it is over long before the
+ * next week comes round.
  */
 const OCCURRENCE_LIFETIME_MS = 24 * 60 * 60_000;
 
@@ -222,73 +231,64 @@ const OCCURRENCE_LIFETIME_MS = 24 * 60 * 60_000;
  * The occurrence a weekly schedule is currently on, or the one it is next
  * waiting for; a `once` schedule resolves to itself.
  *
- * The rule is "the most recent occurrence that has opened and not been
+ * The rule is "the most recent occurrence that has started and not been
  * dismissed, otherwise the next one to come". That single sentence is what makes
  * a weekly schedule behave: tonight's run stays current all evening — including
  * after its structure has run out, so the TV keeps showing the result — and the
- * moment tonight is dismissed, or next week's registration time arrives, the
- * screens move on without anyone touching them.
+ * moment tonight is dismissed, or it is over, the screens move on to next week
+ * without anyone touching them.
  */
 export function scheduleOccurrence(
   schedule: TournamentSchedule,
   nowMs: number,
 ): ScheduleOccurrence {
   if (schedule.scheduleRepeat !== 'weekly') {
-    return {
-      registrationStartAt: schedule.registrationStartAt,
-      tournamentStartAt: schedule.tournamentStartAt,
-    };
+    return { tournamentStartAt: schedule.tournamentStartAt };
   }
 
   const days = (schedule.scheduleWeekdays ?? []).filter((d) => d >= 0 && d <= 6);
   if (days.length === 0 || !schedule.startTime) return {};
 
   const dismissedAt = toEpochMs(schedule.scheduleDismissedAt) ?? -Infinity;
-  const openingTime = schedule.registrationTime ?? schedule.startTime;
 
-  // Today first, then backwards: the newest occurrence that has opened, is still
-  // within its day, and has outlived the last dismissal is the one in play.
+  // Today first, then backwards: the newest occurrence that has started, is
+  // still within its day, and has outlived the last dismissal is the one in play.
   for (let back = 0; back <= WEEK_DAYS; back++) {
-    const occurrence = occurrenceOnDay(schedule, nowMs, -back, days, openingTime);
-    if (!occurrence) continue;
-    const opensAt = Date.parse(occurrence.registrationStartAt!);
-    if (opensAt > nowMs) continue;
-    if (nowMs - opensAt >= OCCURRENCE_LIFETIME_MS) break;
-    if (opensAt > dismissedAt) return occurrence;
+    const startsAt = occurrenceOnDay(schedule, nowMs, -back, days);
+    if (startsAt == null) continue;
+    if (startsAt > nowMs) continue;
+    if (nowMs - startsAt >= OCCURRENCE_LIFETIME_MS) break;
+    if (startsAt > dismissedAt) {
+      return { tournamentStartAt: new Date(startsAt).toISOString() };
+    }
   }
 
-  // Nothing current: announce the next one, so the screens can say it is coming.
+  // Nothing current: announce the next one, so the screens can say it is coming
+  // and registration can be opened once it is close enough.
   for (let ahead = 0; ahead <= WEEK_DAYS; ahead++) {
-    const occurrence = occurrenceOnDay(schedule, nowMs, ahead, days, openingTime);
-    if (!occurrence) continue;
-    const opensAt = Date.parse(occurrence.registrationStartAt!);
-    if (opensAt > nowMs && opensAt > dismissedAt) return occurrence;
+    const startsAt = occurrenceOnDay(schedule, nowMs, ahead, days);
+    if (startsAt == null) continue;
+    if (startsAt > nowMs && startsAt > dismissedAt) {
+      return { tournamentStartAt: new Date(startsAt).toISOString() };
+    }
   }
   return {};
 }
 
-/** The occurrence on the UTC+7 day `offset` days from now, if that day is one of
- *  the schedule's. */
+/** The start instant on the UTC+7 day `offset` days from now, if that day is one
+ *  of the schedule's. */
 function occurrenceOnDay(
   schedule: TournamentSchedule,
   nowMs: number,
   offset: number,
   days: number[],
-  openingTime: string,
-): ScheduleOccurrence | null {
+): number | null {
   const today = new Date(nowMs + OFFSET_MS);
   const day = new Date(
     Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + offset),
   );
   if (!days.includes(day.getUTCDay())) return null;
-
-  const opensAt = instantOnDay(day, openingTime);
-  const startsAt = instantOnDay(day, schedule.startTime!);
-  if (opensAt == null || startsAt == null) return null;
-  return {
-    registrationStartAt: new Date(opensAt).toISOString(),
-    tournamentStartAt: new Date(startsAt).toISOString(),
-  };
+  return instantOnDay(day, schedule.startTime!);
 }
 
 /** A UTC+7 calendar day plus `HH:mm` as a UTC instant. */
@@ -306,23 +306,77 @@ function instantOnDay(day: Date, time: string): number | null {
   );
 }
 
-export function getSchedulePhase(schedule: TournamentSchedule, nowMs: number): SchedulePhase {
-  const occurrence = scheduleOccurrence(schedule, nowMs);
-  const registrationAt = toEpochMs(occurrence.registrationStartAt);
-  const startAt = toEpochMs(occurrence.tournamentStartAt);
-
-  // Checked first so a start time that has already passed wins even if the
-  // registration window was never set — the tournament is due either way.
-  if (startAt != null && nowMs >= startAt) return 'start-due';
-  if (registrationAt != null && nowMs >= registrationAt) return 'registering';
-  if (registrationAt != null || startAt != null) return 'waiting';
-  return 'unscheduled';
+/**
+ * Whether the operator may open the registration countdown right now.
+ *
+ * Three things have to hold, and each rules out a different kind of nonsense:
+ * there has to be a start to count down to; it has to be no more than
+ * {@link REGISTRATION_LEAD_HOURS} away, because a longer countdown is a calendar
+ * entry rather than a board; and it must not have arrived yet, because a
+ * tournament that is due does not need its doors announced.
+ *
+ * Already-open is not a reason to refuse — it just isn't an offer to make, which
+ * is why callers pair this with {@link getRegistrationWindow}.
+ */
+export function canOpenRegistration(schedule: TournamentSchedule, nowMs: number): boolean {
+  const startAt = toEpochMs(scheduleOccurrence(schedule, nowMs).tournamentStartAt);
+  if (startAt == null) return false;
+  return nowMs >= startAt - REGISTRATION_LEAD_MS && nowMs < startAt;
 }
 
 /**
- * The registration countdown, or undefined when the tournament isn't in its
- * registration window — so a caller can render the whole registration screen
+ * How long until the countdown may be opened, in seconds — or null when it may
+ * be opened now, or when there is no start to wait for.
+ *
+ * Screens use it to say "opens in 2h 14m" rather than only greying a button out:
+ * a control that is refused without saying when it will be allowed reads as
+ * broken.
+ */
+export function secondsUntilRegistrationCanOpen(
+  schedule: TournamentSchedule,
+  nowMs: number,
+): number | null {
+  const startAt = toEpochMs(scheduleOccurrence(schedule, nowMs).tournamentStartAt);
+  if (startAt == null) return null;
+  const opensAt = startAt - REGISTRATION_LEAD_MS;
+  return nowMs < opensAt ? Math.ceil((opensAt - nowMs) / 1000) : null;
+}
+
+/**
+ * Whether the countdown the operator opened is the one belonging to the
+ * occurrence in play.
+ *
+ * A stamp from before the lead window cannot have opened this occurrence — it
+ * belongs to last week's, or to a start time that has since been moved. This is
+ * what lets `registrationOpenedAt` be left alone rather than cleared between
+ * weekly nights.
+ */
+function isRegistrationOpen(schedule: TournamentSchedule, nowMs: number): boolean {
+  const openedAt = toEpochMs(schedule.registrationOpenedAt);
+  if (openedAt == null) return false;
+  const startAt = toEpochMs(scheduleOccurrence(schedule, nowMs).tournamentStartAt);
+  if (startAt == null) return false;
+  return openedAt >= startAt - REGISTRATION_LEAD_MS && openedAt < startAt;
+}
+
+export function getSchedulePhase(schedule: TournamentSchedule, nowMs: number): SchedulePhase {
+  const startAt = toEpochMs(scheduleOccurrence(schedule, nowMs).tournamentStartAt);
+  if (startAt == null) return 'unscheduled';
+
+  // Checked first: once the start has arrived the tournament is due, whether or
+  // not anyone ever opened the doors.
+  if (nowMs >= startAt) return 'start-due';
+  return isRegistrationOpen(schedule, nowMs) ? 'registering' : 'waiting';
+}
+
+/**
+ * The registration countdown, or undefined when the doors were never opened for
+ * the occurrence in play — so a caller can render the whole registration screen
  * off the presence of this one value.
+ *
+ * It runs from the moment the operator opened it to the scheduled start, which
+ * is the whole difference from the scheduled window it replaced: the bar is full
+ * at the instant it is asked for, however long or short that turns out to be.
  */
 export function getRegistrationWindow(
   schedule: TournamentSchedule,
@@ -330,12 +384,9 @@ export function getRegistrationWindow(
 ): RegistrationWindow | undefined {
   if (getSchedulePhase(schedule, nowMs) !== 'registering') return undefined;
 
-  const occurrence = scheduleOccurrence(schedule, nowMs);
-  const startAt = toEpochMs(occurrence.tournamentStartAt);
-  if (startAt == null) return { secondsRemaining: null, elapsedFraction: 0 };
-
-  const registrationAt = toEpochMs(occurrence.registrationStartAt) ?? nowMs;
-  const total = Math.max(1, startAt - registrationAt);
+  const startAt = toEpochMs(scheduleOccurrence(schedule, nowMs).tournamentStartAt)!;
+  const openedAt = toEpochMs(schedule.registrationOpenedAt) ?? nowMs;
+  const total = Math.max(1, startAt - openedAt);
   const remaining = Math.max(0, startAt - nowMs);
   return {
     // Rounded up, so the last second is shown as 0:01 rather than skipped.
@@ -345,12 +396,10 @@ export function getRegistrationWindow(
 }
 
 /**
- * The rules relating the two fields: the start comes after registration opens,
- * and not more than {@link MAX_REGISTRATION_WINDOW_HOURS} after it.
+ * The rule on the one instant there is: it has not already gone.
  *
- * Either field being absent is fine — a tournament may open registration with
- * no fixed start, or be given a start time with no registration window in front
- * of it — and neither case has two times to relate.
+ * An absent start is fine — a tournament may have no schedule at all and be
+ * started by hand, exactly as before.
  */
 export function validateSchedule(
   schedule: TournamentSchedule,
@@ -358,57 +407,25 @@ export function validateSchedule(
 ): string | null {
   if (schedule.scheduleRepeat === 'weekly') return validateWeekly(schedule);
 
-  const registrationAt = toEpochMs(schedule.registrationStartAt);
   const startAt = toEpochMs(schedule.tournamentStartAt);
-
-  if (nowMs != null) {
-    const earliest = Math.min(registrationAt ?? Infinity, startAt ?? Infinity);
-    if (earliest < nowMs) return 'The schedule cannot start in the past.';
-  }
-
-  if (registrationAt == null || startAt == null) return null;
-
-  if (startAt <= registrationAt) {
-    return 'Tournament start must be after registration start.';
-  }
-  if (startAt - registrationAt > MAX_REGISTRATION_WINDOW_MS) {
-    return `Tournament start must be within ${MAX_REGISTRATION_WINDOW_HOURS} hours of registration start.`;
-  }
+  if (startAt == null) return null;
+  if (nowMs != null && startAt < nowMs) return 'The schedule cannot start in the past.';
   return null;
 }
 
 /**
  * A weekly schedule is either off — no days picked — or complete. Half of one is
  * the state worth catching: days chosen with no start time would announce a
- * recurrence that never fires.
- *
- * The two times are read on the same UTC+7 day, which is what lets them be
- * compared as plain `HH:mm` strings and keeps the 16-hour rule meaning what it
- * does for a dated schedule.
+ * recurrence that never fires, and a time with no days is a recurrence with no
+ * occasion.
  */
 function validateWeekly(schedule: TournamentSchedule): string | null {
   const days = schedule.scheduleWeekdays ?? [];
-  if (days.length === 0 && !schedule.startTime && !schedule.registrationTime) return null;
+  if (days.length === 0 && !schedule.startTime) return null;
 
   if (days.length === 0) return 'Pick at least one day for a weekly schedule.';
   if (!schedule.startTime) return 'A weekly schedule needs a start time.';
-  if (!schedule.registrationTime) return null;
-
-  const opens = minutesOfDay(schedule.registrationTime);
-  const starts = minutesOfDay(schedule.startTime);
-  if (opens == null || starts == null) return null;
-
-  if (starts <= opens) return 'Tournament start must be after registration start.';
-  if (starts - opens > MAX_REGISTRATION_WINDOW_HOURS * 60) {
-    return `Tournament start must be within ${MAX_REGISTRATION_WINDOW_HOURS} hours of registration start.`;
-  }
   return null;
-}
-
-/** `HH:mm` as minutes past midnight, so two times of day compare as numbers. */
-function minutesOfDay(time: string): number | null {
-  const match = /^(\d{1,2}):(\d{2})/.exec(time);
-  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }
 
 /** An unparseable stored value is treated as absent rather than as epoch zero. */

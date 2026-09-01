@@ -196,27 +196,26 @@ export default function DialLayout(props: ProjectorData) {
               >
                 {m.levelLabel}
               </div>
-              {m.showClock && (
-                <div
-                  key={m.levelKey}
-                  className="display tabular-nums whitespace-nowrap"
-                  style={{
-                    fontSize: pu(
-                      clockFontSize(m.clockStatus, {
-                        running: clockSize(m.clockText),
-                        finished: FINISHED_CLOCK_SIZE,
-                      }),
-                    ),
-                    fontWeight: 600,
-                    lineHeight: 1,
-                    letterSpacing: '-.04em',
-                    color: m.clockColor,
-                    animation: m.isLowTime ? 'cdpulse 1s ease-in-out infinite' : 'lvlin .5s ease',
-                  }}
-                >
-                  {m.clockText}
-                </div>
-              )}
+              <div
+                key={m.levelKey}
+                className="display tabular-nums whitespace-nowrap"
+                style={{
+                  fontSize: pu(
+                    clockFontSize(m.clockStatus, {
+                      running: clockSize(m.clockText),
+                      finished: FINISHED_CLOCK_SIZE,
+                    }),
+                  ),
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  letterSpacing: '-.04em',
+                  color: m.clockColor,
+                  animation: m.isLowTime ? 'cdpulse 1s ease-in-out infinite' : 'lvlin .5s ease',
+                }}
+              >
+                {m.clockText}
+              </div>
+
               {m.chipRaceLine && (
                 <div
                   className="uppercase"

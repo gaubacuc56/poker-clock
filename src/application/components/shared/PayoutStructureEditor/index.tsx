@@ -3,7 +3,14 @@ import type { PayoutTier, PayoutUnit } from '@domain/entities';
 import { formatNumber } from '@domain/rules/format';
 import { fromCents, toCents } from '@domain/rules/money';
 import { getPayoutTotals, hasPayouts } from '@domain/rules/payouts';
-import { NoteIcon, PlusIcon, TrashIcon, WarningIcon } from '@application/components/ui/icons';
+import ConfirmDialog from '@application/components/ui/ConfirmDialog';
+import {
+  NoteIcon,
+  PlusIcon,
+  ResetIcon,
+  TrashIcon,
+  WarningIcon,
+} from '@application/components/ui/icons';
 
 interface PayoutStructureEditorProps {
   tiers: PayoutTier[];
@@ -11,8 +18,8 @@ interface PayoutStructureEditorProps {
   onUnitChange: (unit: PayoutUnit) => void;
   onChange: (tiers: PayoutTier[]) => void;
   currency: string;
-  /** The guarantee, in cents — 0/undefined means none set yet. */
   guaranteedPrizePoolCents: number;
+  onReset?: () => Promise<string | null>;
 }
 
 export default function PayoutStructureEditor({
@@ -22,12 +29,16 @@ export default function PayoutStructureEditor({
   onChange,
   currency,
   guaranteedPrizePoolCents,
+  onReset,
 }: PayoutStructureEditorProps) {
   const isAmount = unit === 'amount';
   const { total, target, isValid } = getPayoutTotals(tiers, unit, guaranteedPrizePoolCents);
   // Rows whose note field has been opened but is still empty. A row that
   // already has a note shows its field without needing to be listed here.
   const [openNotes, setOpenNotes] = useState<number[]>([]);
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   function isNoteOpen(index: number) {
     return openNotes.includes(index) || tiers[index].note !== undefined;
@@ -62,6 +73,22 @@ export default function PayoutStructureEditor({
     onChange([...tiers, { position: tiers.length + 1, value: 0 }]);
   }
 
+
+  async function confirmReset() {
+    setIsResetting(true);
+    setResetError(null);
+    const failure = onReset ? await onReset() : null;
+    setIsResetting(false);
+    if (failure) {
+      setResetError(failure);
+      return;
+    }
+    onChange([]);
+    onUnitChange('percentage');
+    setOpenNotes([]);
+    setConfirmingReset(false);
+  }
+
   function removeTier(index: number) {
     onChange(
       tiers
@@ -77,7 +104,7 @@ export default function PayoutStructureEditor({
 
   return (
     <div className="flex flex-col gap-2.5">
-      <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap items-center gap-2.5">
         <div className="seg">
           <button
             type="button"
@@ -96,10 +123,28 @@ export default function PayoutStructureEditor({
             {currency}
           </button>
         </div>
-        <button type="button" className="btn btn-primary ml-auto" onClick={addTier}>
-          <PlusIcon className="size-[17px]" />
-          Add place
-        </button>
+        {/* Narrow screens put the two actions on their own row under the unit
+            toggle, rather than squeezing three controls onto one line. */}
+        <div className="flex w-full gap-2.5 sm:ml-auto sm:w-auto">
+          {/* Only offered while there is something to reset. */}
+          {tiers.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary flex-1 sm:flex-none"
+              onClick={() => {
+                setResetError(null);
+                setConfirmingReset(true);
+              }}
+            >
+              <ResetIcon className="size-[17px]" />
+              Reset
+            </button>
+          )}
+          <button type="button" className="btn btn-primary flex-1 sm:flex-none" onClick={addTier}>
+            <PlusIcon className="size-[17px]" />
+            Add place
+          </button>
+        </div>
       </div>
 
       {isAmount && guaranteedPrizePoolCents === 0 && (
@@ -189,6 +234,23 @@ export default function PayoutStructureEditor({
             }`}
         </p>
       )}
+
+      {resetError && (
+        <p className="flex items-center gap-1.5 text-[18px] text-coral">
+          <WarningIcon className="size-[15px] shrink-0" />
+          {resetError}
+        </p>
+      )}
+
+      <ConfirmDialog
+        open={confirmingReset}
+        title="Reset payouts?"
+        message="Every place, prize and note is removed and the change is saved straight away. The rest of the tournament is left alone."
+        confirmLabel="Reset"
+        isBusy={isResetting}
+        onConfirm={confirmReset}
+        onCancel={() => setConfirmingReset(false)}
+      />
     </div>
   );
 }

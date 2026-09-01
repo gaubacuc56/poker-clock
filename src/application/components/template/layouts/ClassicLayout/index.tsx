@@ -1,5 +1,5 @@
 import type { ProjectorData } from '@domain/entities';
-import { formatAmount, formatMoney, formatNumber } from '@domain/rules/format';
+import { formatCompactAmount, formatMoney, formatNumber } from '@domain/rules/format';
 import { pu } from '@application/shared/projectorScale';
 import ClockDisplay from '@application/components/shared/ClockDisplay';
 import ClubLogo from '@application/components/shared/ClubLogo';
@@ -91,7 +91,7 @@ export default function ClassicLayout(props: ProjectorData) {
                 className="whitespace-nowrap text-center"
                 style={{ fontSize: pu(SUBTITLE_SIZE) }}
               >
-                {line.label}: {formatAmount(line.amountCents)}{' '}
+                {line.label}: {formatCompactAmount(line.amountCents)}{' '}
               </p>
             ))}
             <p
@@ -120,7 +120,6 @@ export default function ClassicLayout(props: ProjectorData) {
               running: CLOCK_SIZE,
               finished: FINISHED_CLOCK_SIZE,
             })}
-            showClock={m.showClock}
             showBlinds={m.showBlinds}
             nextText={m.nextText}
             tone={m.tone}

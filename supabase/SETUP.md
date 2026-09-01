@@ -17,7 +17,7 @@ There is no public sign-up in this app — accounts are created by hand in the S
 3. Open `supabase/migrations/0001_init.sql` from this repo, copy its entire contents, paste into the query editor, and click **Run**.
    - This creates `tournaments` (including the `entrant_count`/`eliminated_count`/`rebuy_count`/`add_on_count` counters — there is no `players`/`registrations` table in this app, see `SCHEMA.md`) and `clock_states`, enables Row Level Security, adds the owner-scoped policies, and adds `clock_states` to the Realtime publication.
 4. Open a **New query** again, copy `supabase/migrations/0002_currencies.sql`, paste, and click **Run**.
-   - This creates the `currencies` lookup table (seeded with USD/VND/KEYS), and switches `tournaments.currency` from a hardcoded list to a foreign key against it — so adding a new currency later is a SQL insert, not a code change.
+   - This creates the `currencies` lookup table (seeded with USD/VND/KEYS), and switches `tournaments.currency` from a hardcoded list to a foreign key against it. `0013` later reworks this into standard units plus per-account custom ones, and drops the foreign key.
 5. Open a **New query** again, copy `supabase/migrations/0003_public_projector.sql`, paste, and click **Run**.
    - This adds a short `join_code` to each tournament and makes the projector view (`/p/:join_code`) work without signing in — see `SCHEMA.md`'s "Public projector access" section for exactly what's exposed and why.
 6. Open a **New query** again, copy `supabase/migrations/0004_widen_money_columns.sql`, paste, and click **Run**.
@@ -28,9 +28,24 @@ There is no public sign-up in this app — accounts are created by hand in the S
    - Drops `bounty_amount_cents` (the bounty feature is gone) and adds `rebuy_price_cents`/`add_on_price_cents` so a rebuy and an add-on can each have their own price instead of always assuming the buy-in amount; re-declares `get_tournament_by_join_code` to match.
 9. Open a **New query** again, copy `supabase/migrations/0007_media_bucket_policies.sql`, paste, and click **Run**.
    - Adds the storage RLS policies that let signed-in users **list** and **upload** projector backgrounds in the `media` bucket (step 4). A bucket being Public only makes objects downloadable by URL — listing/uploading still go through RLS, so without this the Settings page shows an empty list even though images exist. (You can also do this from the dashboard's Storage → Policies UI; the SQL just does the same thing reproducibly.)
-10. Run them **in order** (0001 through 0007). If you ever add another schema change, add a new `0008_...` file rather than editing any of these once they've been run against a real project.
+10. Open a **New query** for each remaining file in `supabase/migrations/`, in filename order — `0008_finished_status.sql` through `0013_plans_units_ownership_and_registration_trigger.sql`. Each one's own header comment says what it does; the two worth knowing about before you run them are:
+    - `0012_weekly_schedule_and_cron.sql` needs the **pg_cron** extension. It tries to create it; if that's refused, enable it under **Database → Extensions** and re-run.
+    - `0013_plans_units_ownership_and_registration_trigger.sql` creates `plans` and `profiles`, makes projector backgrounds private to the account that uploaded them, makes currency units per-account, and replaces the scheduled registration start with the operator-triggered countdown. It backfills a `profiles` row for every existing account and puts them all on `BASIC`.
+11. Run them **in order** (0001 through 0013). If you ever add another schema change, add a new `0014_...` file rather than editing any of these once they've been run against a real project.
 
-You can confirm it worked in **Table Editor** — you should see `tournaments` (with `eliminated_count`, `join_code`, `payout_unit`, and `projector_background_id` columns), `clock_states`, and `currencies` (with 3 seeded rows). Under **Database → Functions** you should see `get_tournament_by_join_code`.
+You can confirm it worked in **Table Editor** — you should see `tournaments` (with `eliminated_count`, `join_code`, `payout_unit`, and `projector_background_id` columns), `clock_states`, `currencies` (VND and USD), `plans` (BASIC and MODERATOR) and `profiles` (one row per account). Under **Database → Functions** you should see `get_tournament_by_join_code` and `get_my_plan`.
+
+### Changing an account's plan
+
+There is no screen for this, deliberately — an account that could write its own plan could grant itself one. Set it from the SQL editor:
+
+```sql
+update profiles
+set plan_code = 'MODERATOR', plan_start = current_date, plan_end = '2027-01-01'
+where id = (select id from auth.users where email = 'them@example.com');
+```
+
+`plan_end` may be left null for a plan that doesn't expire. A plan whose dates don't cover today isn't in force: the account falls back to `BASIC` allowances rather than to none, and the Settings → Plan screen says so.
 
 ## 3. Create user accounts (this is how you log in — there is no sign-up screen)
 
@@ -55,6 +70,8 @@ No migration creates the bucket itself — like user accounts above, it's made b
 3. Inside it, create a folder named `background` — projector background images live there (the app uploads to and lists that folder; the bucket can hold other media alongside it).
 
 This backs the "Projector backgrounds" section on Settings — uploaded images are the only backgrounds the app offers, selectable from the same Setup Wizard picker. Listing and uploading them requires the RLS policies added in step 9; a Public bucket alone is **not** enough (Public only affects direct downloads, not listing).
+
+After `0013`, those policies scope every image to the account that uploaded it, and cap how many an account may have at its plan's `max_background`. Images uploaded before `0013` keep working and stay with whoever uploaded them — but anything uploaded from the dashboard rather than from the app has no owner and will be invisible to everyone. Upload from the app's Settings screen.
 
 ## 5. Enable Realtime on `clock_states` (should already be on)
 
@@ -111,3 +128,7 @@ Open the printed local URL (Vite's default is `http://localhost:5173`):
 - **Saving a tournament fails with something like "out of range for type integer" / "value too long"** — `0004_widen_money_columns.sql` hasn't run yet. Large VND-scale amounts (buy-in, fee, bounty, guarantee) overflow the old `integer` columns once the app multiplies them by 100.
 - **Settings page shows no backgrounds even though you uploaded some** — the images exist (their public URLs even work) but the list is empty. This is almost always the storage RLS policies from step 9 (`0007`) not being applied: a Public bucket makes objects *downloadable* but does **not** grant permission to *list* them, so `.list()` returns an empty array with no error. Confirm the `media` bucket has `authenticated` `select` + `insert` policies (Storage → Policies, or re-run `0007`). Also check the bucket is named exactly `media` and the images are in a `background/` folder inside it.
 - **Projector view doesn't show a background** — check the `media` bucket is actually marked Public; a private bucket needs a signed URL, which this app doesn't use.
+- **Backgrounds you uploaded from the Supabase dashboard don't appear in the app** — expected after `0013`. The policies match on `storage.objects.owner`, and an object uploaded from the dashboard has no owner. Re-upload it from Settings → Projector backgrounds.
+- **Saving a tournament fails with "Plan limit reached"** — the account is at its plan's `max_tour`, or at `max_running_tour` when starting one. Settings → Plan shows both numbers against what's been used; change the plan with the SQL in step 2 if the limit is wrong.
+- **Uploading a background fails with a row-level security error** — the same thing one layer down: the plan's `max_background` is full. The app normally refuses first, with a sentence; the policy error is what you get if two tabs raced for the last slot.
+- **A tournament never opens for registration on its own** — it isn't meant to, since `0013`. There is no scheduled registration start any more: open the Control screen within six hours of the start and press **Open registration**.

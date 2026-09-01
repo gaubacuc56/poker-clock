@@ -10,8 +10,20 @@ export function startTournament(tournament: TournamentConfig): TournamentConfig 
   return { ...tournament, status: 'running' };
 }
 
-export function openRegistration(tournament: TournamentConfig): TournamentConfig {
-  return { ...tournament, status: 'registering' };
+/**
+ * Opening the doors: the operator's own act, and the only thing that starts the
+ * registration countdown now that there is no scheduled registration instant.
+ *
+ * `nowIso` is both the record that it happened and where the countdown's
+ * progress bar starts, so the room's countdown runs from the moment the doors
+ * actually opened rather than from a time typed in yesterday. Callers gate this
+ * on `canOpenRegistration`.
+ */
+export function openRegistration(
+  tournament: TournamentConfig,
+  nowIso: string,
+): TournamentConfig {
+  return { ...tournament, status: 'registering', registrationOpenedAt: nowIso };
 }
 
 export function scheduledClockState(
@@ -82,12 +94,18 @@ export function isTournamentFinished(
  * counters reset here so the next Start begins fresh rather than resuming
  * mid-tournament. Add-ons are deliberately left untouched.
  *
+ * The payout structure goes with the counters. Prizes are written for the field
+ * that turned up — as a share of that pool, or as amounts against that night's
+ * guarantee — so carrying them into a run that starts from zero entrants would
+ * be quoting last night's numbers. Reset leaves the payouts as a new tournament
+ * has them: none, and the default unit.
+ *
  * What happens to the schedule depends on what kind it is, and `nowIso` is the
  * instant the admin stopped it.
  *
  * A dated schedule describes one occurrence, so stopping drops it — left in
- * place, a registration window that hasn't elapsed yet would reopen on the very
- * next tick and put the tournament straight back to counting down.
+ * place, a start time that hasn't arrived yet would put the tournament straight
+ * back to waiting for itself.
  *
  * A weekly one is an arrangement, not an occurrence: stopping dismisses tonight
  * and the next day on the list still fires, which is the whole reason for
@@ -103,9 +121,14 @@ export function stopTournament(
     entrantCount: DEFAULT_ENTRANT_COUNT,
     eliminatedCount: 0,
     rebuyCount: 0,
+    payoutTiers: [],
+    payoutUnit: undefined,
+    // The doors close with the run. Left set, the countdown would reopen on the
+    // next occurrence without anyone asking for it.
+    registrationOpenedAt: undefined,
   };
 
   return tournament.scheduleRepeat === 'weekly'
     ? { ...ended, scheduleDismissedAt: nowIso }
-    : { ...ended, registrationStartAt: undefined, tournamentStartAt: undefined };
+    : { ...ended, tournamentStartAt: undefined };
 }

@@ -27,7 +27,6 @@ interface ClockDisplayProps {
   /** Font size for the clock, in projector units — decided by the layout, which
    *  is where the per-state sizes live. */
   clockSize: number;
-  showClock?: boolean;
   /** False on a break, and while registering — play hasn't opened, so no blinds
    *  are in force yet. */
   showBlinds: boolean;
@@ -44,7 +43,6 @@ export default function ClockDisplay({
   levelLabel,
   clockText,
   clockSize,
-  showClock = true,
   showBlinds,
   nextText,
   tone,
@@ -69,20 +67,16 @@ export default function ClockDisplay({
         </p>
       )}
 
-      {showClock && (
-        <p
-          className={`display leading-none font-black tabular-nums [-webkit-text-stroke:0.02em_currentColor] ${tones.digits}`}
-          style={{
-            fontSize: pu(clockSize),
-            letterSpacing: DIGIT_TRACKING,
-            // Letter spacing is added after the last character too, which would
-            // shove the centred line off to the left by that much.
-            marginRight: `-${DIGIT_TRACKING}`,
-          }}
-        >
-          {clockText}
-        </p>
-      )}
+      <p
+        className={`display leading-none font-black tabular-nums [-webkit-text-stroke:0.02em_currentColor] ${tones.digits}`}
+        style={{
+          fontSize: pu(clockSize),
+          letterSpacing: DIGIT_TRACKING,
+          marginRight: `-${DIGIT_TRACKING}`,
+        }}
+      >
+        {clockText}
+      </p>
 
       <div className="flex flex-col self-stretch text-center" style={{ marginTop: pu(1) }}>
         {showBlinds && (

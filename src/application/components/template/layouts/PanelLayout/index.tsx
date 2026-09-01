@@ -173,31 +173,30 @@ export default function PanelLayout(props: ProjectorData) {
               {m.chipRaceLine}
             </div>
           )}
-          {m.showClock && (
-            <div
-              key={m.levelKey}
-              className="display tabular-nums whitespace-nowrap"
-              style={{
-                fontSize: pu(
-                  clockFontSize(m.clockStatus, {
-                    running: CLOCK_SIZE,
-                    finished: FINISHED_CLOCK_SIZE,
-                  }),
-                ),
-                fontWeight: 600,
-                lineHeight: 1,
-                letterSpacing: CLOCK_TRACKING,
-                color: m.clockColor,
-                // Tracking is added after the last digit too, which would shove
-                // the centred line off to the left by that much.
-                margin: `${pu(0.6)} -${CLOCK_TRACKING} ${pu(0.6)} 0`,
-                textShadow: m.clockShadow,
-                animation: m.isLowTime ? 'cdpulse 1s ease-in-out infinite' : 'lvlin .5s ease',
-              }}
-            >
-              {m.clockText}
-            </div>
-          )}
+          <div
+            key={m.levelKey}
+            className="display tabular-nums whitespace-nowrap"
+            style={{
+              fontSize: pu(
+                clockFontSize(m.clockStatus, {
+                  running: CLOCK_SIZE,
+                  finished: FINISHED_CLOCK_SIZE,
+                }),
+              ),
+              fontWeight: 600,
+              lineHeight: 1,
+              letterSpacing: CLOCK_TRACKING,
+              color: m.clockColor,
+              // Tracking is added after the last digit too, which would shove
+              // the centred line off to the left by that much.
+              margin: `${pu(0.6)} -${CLOCK_TRACKING} ${pu(0.6)} 0`,
+              textShadow: m.clockShadow,
+              animation: m.isLowTime ? 'cdpulse 1s ease-in-out infinite' : 'lvlin .5s ease',
+            }}
+          >
+            {m.clockText}
+          </div>
+
           {/* Ledger's figures are a third larger than the ones this row used to
               hold, so the gap between them gives up what they took. */}
           {m.showBlinds && (

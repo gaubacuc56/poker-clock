@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTournamentStore, useToast } from '@composition/container';
 import type { TournamentConfig } from '@domain/entities';
@@ -22,7 +22,15 @@ import {
 export default function DashboardPage() {
   const tournaments = useTournamentStore((state) => state.tournaments);
   const remove = useTournamentStore((state) => state.remove);
+  const tournamentsLoaded = useTournamentStore((state) => state.isLoaded);
+  const loadTournaments = useTournamentStore((state) => state.load);
   const { toastMessage, showToast } = useToast();
+
+  // Each screen asks for what it shows. The store fetches once and hands the
+  // same request to whoever asks next, so this costs nothing on a revisit.
+  useEffect(() => {
+    void loadTournaments();
+  }, [loadTournaments]);
 
   const [pendingDelete, setPendingDelete] = useState<TournamentConfig | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -50,7 +58,7 @@ export default function DashboardPage() {
     <Screen>
       <TopBar tone="rail">
         <Brand className="size-[34px]" />
-        <h1 className="engrave display text-[18px]">Tournaments</h1>
+        <h1 className="engrave display text-[18px] hidden sm:block">Tournaments</h1>
         <Link to="/setup/new" className="btn btn-primary ml-auto text-[15px]">
           <PlusIcon className="size-[17px]" />
           New Tournament
@@ -59,7 +67,9 @@ export default function DashboardPage() {
 
       <div className="scroll felt px-4 pt-4 pb-[22px]">
         <div className="content flex flex-col gap-3">
-          {tournaments.length === 0 ? (
+          {!tournamentsLoaded ? (
+            <p className="px-2 py-10 text-center text-[16px] text-faint">Loading…</p>
+          ) : tournaments.length === 0 ? (
             <p className="px-2 py-10 text-center text-[16px] text-faint">
               No tournaments yet. Create one to get started.
             </p>
@@ -67,23 +77,25 @@ export default function DashboardPage() {
             tournaments.map((tournament) => (
               <div key={tournament.id} className="tkt">
                 <div className="tkt-main">
-                  <div className="min-w-0 flex-1">
-                    <TournamentStatusBadge status={tournament.status} />
-                    <Link
-                      to={`/tournament/${tournament.id}/control`}
-                      className="tkt-name engrave display mt-[3px] w-fit text-[26px] leading-[1.2]"
-                    >
-                      {tournament.name}
-                    </Link>
-                    <span className="mt-0.5 block text-[15.5px] text-muted">
+                  <TournamentStatusBadge status={tournament.status} />
+                  <Link
+                    to={`/tournament/${tournament.id}/control`}
+                    className="tkt-name engrave display mt-[3px] text-[26px] leading-[1.2]"
+                  >
+                    {tournament.name}
+                  </Link>
+                  {/* The count and the code share a line: two short readings of
+                      the ticket, and the name above them gets the full width. */}
+                  <div className="mt-1 flex w-full items-baseline justify-between gap-3">
+                    <span className="text-[15.5px] text-muted">
                       {formatNumber(tournament.entrantCount)} entrants
                     </span>
+                    {tournament.joinCode && (
+                      <span className="display flex-none text-right text-[22px] leading-[1.2] font-bold tracking-[.2em] text-accent">
+                        {tournament.joinCode}
+                      </span>
+                    )}
                   </div>
-                  {tournament.joinCode && (
-                    <span className="display flex-none text-right text-[26px] leading-[1.2] font-bold tracking-[.2em] text-accent">
-                      {tournament.joinCode}
-                    </span>
-                  )}
                 </div>
 
                 <button
@@ -110,7 +122,7 @@ export default function DashboardPage() {
                     onClick={() => handleCopyProjectorLink(tournament.joinCode)}
                   >
                     <LinkIcon className="size-[17px]" />
-                    Copy projector link
+                    Projector link
                   </button>
                 </div>
               </div>

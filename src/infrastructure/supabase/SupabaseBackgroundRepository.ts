@@ -7,9 +7,25 @@ import { supabase } from './client';
  * bucket, so a `projectorBackgroundId` is the object's full in-bucket path
  * (e.g. `background/uuid-name.jpg`) — that's what `getPublicUrl` expects and
  * what gets stored on the tournament row.
+ *
+ * Ownership is not in the path. It is `storage.objects.owner`, which storage
+ * records on upload, and RLS (migration `0013`) is what makes `list()` return
+ * only the caller's own images — the folder stays flat so objects uploaded
+ * before ownership existed keep resolving at the paths tournaments already
+ * reference.
+ *
+ * What the path does carry is the uploader's id as a filename prefix, so two
+ * accounts uploading `felt.jpg` don't collide in a bucket they can no longer see
+ * each other in.
  */
 const BUCKET = 'media';
 const FOLDER = 'background';
+
+/** Separates the owner id from the file's own name — not `/`, which would make
+ *  it a folder and break the single flat `list()`. */
+const OWNER_PREFIX_SEPARATOR = '__';
+
+const OWNER_PREFIXED = new RegExp(`^[0-9a-f-]{36}${OWNER_PREFIX_SEPARATOR}`, 'i');
 
 /**
  * Resolves a `projectorBackgroundId` to a renderable URL for an object in
@@ -23,35 +39,44 @@ export function resolveBackgroundPath(id: string | undefined): string | undefine
   return supabase.storage.from(BUCKET).getPublicUrl(id).data.publicUrl;
 }
 
+/** The name to show: the file the account chose, without the id in front of it. */
+function displayLabel(fileName: string): string {
+  return fileName.replace(OWNER_PREFIXED, '');
+}
+
+function toBackground(fileName: string): Background {
+  const path = `${FOLDER}/${fileName}`;
+  return {
+    id: path,
+    label: displayLabel(fileName),
+    path: supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl,
+  };
+}
+
 export class SupabaseBackgroundRepository implements BackgroundRepository {
   async list(): Promise<Background[]> {
     const { data, error } = await supabase.storage.from(BUCKET).list(FOLDER);
     if (error) throw error;
 
-    return (data ?? [])
-      .filter((file) => file.id !== null)
-      .map((file) => {
-        const path = `${FOLDER}/${file.name}`;
-        return {
-          id: path,
-        label: file.name,
-          path: supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl,
-        };
-      });
+    return (data ?? []).filter((file) => file.id !== null).map((file) => toBackground(file.name));
   }
 
   async upload(file: File): Promise<Background> {
-    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-    const path = `${FOLDER}/${safeName}`;
+    const { data: auth } = await supabase.auth.getUser();
+    const ownerId = auth.user?.id;
+    if (!ownerId) throw new Error('Not signed in.');
 
-    const { error } = await supabase.storage.from(BUCKET).upload(path, file);
+    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const fileName = `${ownerId}${OWNER_PREFIX_SEPARATOR}${safeName}`;
+
+    // `upsert` so re-uploading a name the account already used replaces its own
+    // image instead of failing — it can no longer be anybody else's file.
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(`${FOLDER}/${fileName}`, file, { upsert: true });
     if (error) throw error;
 
-    return {
-      id: path,
-      label: file.name,
-      path: supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl,
-    };
+    return toBackground(fileName);
   }
 
   async remove(id: string): Promise<void> {
@@ -63,7 +88,7 @@ export class SupabaseBackgroundRepository implements BackgroundRepository {
     // the UI doesn't drop an object that still exists in the bucket.
     if (!data || data.length === 0) {
       throw new Error(
-        'Delete was blocked — the object still exists. Check the `media` bucket has a delete policy for the authenticated role (migration 0007).',
+        'Delete was blocked — the object still exists. Backgrounds can only be deleted by the account that uploaded them (migration 0013).',
       );
     }
   }

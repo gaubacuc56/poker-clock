@@ -7,7 +7,7 @@ import {
   formatLevelLabel,
 } from './blindFormat';
 import {
-  formatAmount,
+  formatCompactAmount,
   formatClock,
   formatCompactNumber,
   formatDurationHMS,
@@ -74,12 +74,6 @@ export interface ProjectorModel {
   /** The countdown is actually ticking — the only state a progress indicator
    *  should be drawn in. Read this rather than negating a halt. */
   isRunning: boolean;
-  /**
-   * Whether there is a countdown to draw at all. False only for a tournament
-   * registering with no scheduled start: the doors are open, nothing is counting
-   * towards anything, and a clock reading 0:00 would be a lie.
-   */
-  showClock: boolean;
   /** 0…1 of the current level already elapsed — drives the rail and the dial. */
   elapsedFraction: number;
   levelLabel: string;
@@ -122,10 +116,15 @@ export function buildProjectorModel(data: ProjectorData): ProjectorModel {
         ? 'paused'
         : 'running';
 
-  // A tournament counting down to its start has a countdown; one whose doors are
-  // simply open has nothing to count.
-  const registrationSeconds = isRegistering ? (registration?.secondsRemaining ?? null) : null;
-  const showClock = !isRegistering || registrationSeconds != null;
+  // Registration always has a start to count down to now — it can only be
+  // opened inside the lead window before one. That window is hours long, so the
+  // countdown grows an hours field rather than reading "360:00"; a level clock
+  // never needs one and keeps the tighter mm:ss.
+  const registrationSeconds = isRegistering ? (registration?.secondsRemaining ?? 0) : 0;
+  const registrationText =
+    registrationSeconds >= 3600
+      ? formatDurationHMS(registrationSeconds)
+      : formatClock(registrationSeconds);
 
   // Nothing about the blind structure applies until the clock starts, so a
   // registering screen stays in the plain tone however short the countdown gets.
@@ -152,8 +151,7 @@ export function buildProjectorModel(data: ProjectorData): ProjectorModel {
     isFinished,
     tone: isLowTime ? 'low' : isBreak ? 'break' : 'normal',
     clockStatus,
-    isRunning: isRegistering ? showClock : clockStatus === 'running',
-    showClock,
+    isRunning: isRegistering || clockStatus === 'running',
     elapsedFraction,
     levelLabel: isFinished
       ? 'Finished'
@@ -164,7 +162,7 @@ export function buildProjectorModel(data: ProjectorData): ProjectorModel {
     clockText: isFinished
       ? 'FINISHED'
       : isRegistering
-        ? (registrationSeconds != null ? formatClock(registrationSeconds) : '')
+        ? registrationText
         : isPaused
           ? 'PAUSED'
           : formatClock(secondsRemaining),
@@ -203,7 +201,7 @@ function anteParts(level: BlindLevel): { anteNumber: string; anteUnit: string } 
 /** The buy-in and re-buy prices followed by the starting stack, on one line. */
 function buildPriceLine(entryPriceLines: ProjectorData['entryPriceLines'], startingStack: number) {
   return [
-    ...entryPriceLines.map((line) => `${line.label} ${formatAmount(line.amountCents)}`),
+    ...entryPriceLines.map((line) => `${line.label} ${formatCompactAmount(line.amountCents)}`),
     `Stack ${formatNumber(startingStack)}`,
   ].join(PRICE_LINE_SEPARATOR);
 }

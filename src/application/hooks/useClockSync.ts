@@ -1,6 +1,17 @@
-import { useEffect } from 'react';
-import type { ClockSyncGateway } from '@domain/ports';
+import { useEffect, useRef } from 'react';
+import type { ClockState, ClockSyncGateway } from '@domain/ports';
 import { useClockStore } from '../stores/clockStore';
+
+/**
+ * What a clock looks like on the server, as a comparable string.
+ *
+ * Object identity can't answer "is this already what the server has": hydrating
+ * puts a freshly parsed object into the store, and pushing it straight back
+ * would be a write of the row that was just read.
+ */
+function remoteSignature(tournamentId: string, clock: ClockState): string {
+  return `${tournamentId}:${JSON.stringify(clock)}`;
+}
 
 interface ClockSyncHooks {
   /**
@@ -22,6 +33,9 @@ export function createClockSyncHooks(gateway: ClockSyncGateway): ClockSyncHooks 
     const applyRemoteState = useClockStore((state) => state.applyRemoteState);
     const stopLocal = useClockStore((state) => state.stop);
 
+    /** The state the server is known to hold, so it is never written twice. */
+    const syncedRef = useRef<string | null>(null);
+
     // Hydrate from whatever was last saved remotely — covers a page refresh
     // or reopening the tab after a tournament was already started elsewhere.
     useEffect(() => {
@@ -30,7 +44,12 @@ export function createClockSyncHooks(gateway: ClockSyncGateway): ClockSyncHooks 
       gateway
         .fetch(tournamentId)
         .then((remoteClock) => {
-          if (!cancelled && remoteClock) applyRemoteState(tournamentId, remoteClock);
+          if (cancelled || !remoteClock) return;
+          // Recorded before it reaches the store: applying it changes the clock
+          // the push effect below watches, and without this the very next thing
+          // this screen did on opening was write back the row it had just read.
+          syncedRef.current = remoteSignature(tournamentId, remoteClock);
+          applyRemoteState(tournamentId, remoteClock);
         })
         .catch((error) => {
           console.error('Failed to fetch initial clock state', error);
@@ -41,8 +60,20 @@ export function createClockSyncHooks(gateway: ClockSyncGateway): ClockSyncHooks 
     }, [tournamentId, applyRemoteState]);
 
     useEffect(() => {
-      if (!storeTournamentId || !clock) return;
+      if (!storeTournamentId || !clock) {
+        syncedRef.current = null;
+        return;
+      }
+
+      const signature = remoteSignature(storeTournamentId, clock);
+      if (signature === syncedRef.current) return;
+
+      // Claimed before the request goes out, so a re-run with the same state —
+      // a remount, or React's development double-invoke — doesn't write twice.
+      syncedRef.current = signature;
       gateway.push(storeTournamentId, clock).catch((error) => {
+        // The server didn't get it after all; let the next change try again.
+        syncedRef.current = null;
         console.error('Failed to sync clock state', error);
       });
     }, [storeTournamentId, clock]);
