@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
-import type { ClockState, ClockSyncGateway } from '@domain/ports';
+import type { ClockSyncGateway } from '@domain/ports';
 import { useClockStore } from '../stores/clockStore';
+import type { ClockState } from '@domain/entities';
 
 /**
  * What a clock looks like on the server, as a comparable string.
@@ -45,9 +46,6 @@ export function createClockSyncHooks(gateway: ClockSyncGateway): ClockSyncHooks 
         .fetch(tournamentId)
         .then((remoteClock) => {
           if (cancelled || !remoteClock) return;
-          // Recorded before it reaches the store: applying it changes the clock
-          // the push effect below watches, and without this the very next thing
-          // this screen did on opening was write back the row it had just read.
           syncedRef.current = remoteSignature(tournamentId, remoteClock);
           applyRemoteState(tournamentId, remoteClock);
         })
@@ -68,11 +66,8 @@ export function createClockSyncHooks(gateway: ClockSyncGateway): ClockSyncHooks 
       const signature = remoteSignature(storeTournamentId, clock);
       if (signature === syncedRef.current) return;
 
-      // Claimed before the request goes out, so a re-run with the same state —
-      // a remount, or React's development double-invoke — doesn't write twice.
       syncedRef.current = signature;
       gateway.push(storeTournamentId, clock).catch((error) => {
-        // The server didn't get it after all; let the next change try again.
         syncedRef.current = null;
         console.error('Failed to sync clock state', error);
       });
