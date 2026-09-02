@@ -6,6 +6,7 @@ import {
   useClockSyncControl,
   useTournamentClock,
   useClockSounds,
+  usePlanStore,
   useToast,
   resolveBackgroundPath,
 } from "@composition/container";
@@ -14,7 +15,7 @@ import { canAdjustTime, isClockFinished } from "@domain/rules/blindProgression";
 import { getEntryPriceLines } from "@domain/rules/entryPricing";
 import { calculatePrizePoolForTournament } from "@domain/rules/prizePool";
 import { computeTournamentStats } from "@domain/rules/tournamentStats";
-import { buildProjectorData } from "@domain/rules/projectorData";
+import { buildTournamentScreen } from "@domain/rules/projectorData";
 import {
   buildControlLabels,
   formatAnte,
@@ -22,20 +23,20 @@ import {
   hasAnte,
 } from "@domain/rules/controlLabels";
 import {
+  countRunningTournaments,
   finishTournament,
   isTournamentInPlay,
-  openRegistration,
   startTournament,
   stopTournament,
 } from "@domain/rules/tournamentLifecycle";
 import {
-  canOpenRegistration,
   formatScheduleMoment,
   getRegistrationWindow,
   REGISTRATION_LEAD_HOURS,
   scheduleOccurrence,
-  secondsUntilRegistrationCanOpen,
+  secondsUntilRegistrationOpens,
 } from "@domain/rules/tournamentSchedule";
+import { planLimitMessage } from "@domain/rules/planLimits";
 import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
 import { DEFAULT_CURRENCY } from "@domain/constants/tournament";
 import {
@@ -60,7 +61,6 @@ import {
   ChevronRightIcon,
   LinkIcon,
   PauseIcon,
-  PlayersIcon,
   PlayIcon,
   ResetIcon,
   SpeakerIcon,
@@ -83,6 +83,9 @@ export default function ControlPage() {
   );
   const saveTournament = useTournamentStore((state) => state.save);
   const loadTournaments = useTournamentStore((state) => state.load);
+  const tournaments = useTournamentStore((state) => state.tournaments);
+  const plan = usePlanStore((state) => state.plan);
+  const loadPlan = usePlanStore((state) => state.load);
 
   const history = useClockStore((state) => state.history);
   const isMuted = useClockStore((state) => state.isMuted);
@@ -102,6 +105,12 @@ export default function ControlPage() {
   const captureFrameRef = useRef<ProjectorCaptureFrameHandle>(null);
   const { toastMessage, showToast } = useToast();
 
+  const runningLimitMessage = planLimitMessage(
+    plan,
+    "runningTournaments",
+    countRunningTournaments(tournaments, id),
+  );
+
   async function handleCopyProjectorLink() {
     if (!tournament?.joinCode) return;
     showToast(await copyProjectorLink(tournament.joinCode));
@@ -120,7 +129,7 @@ export default function ControlPage() {
     nextBreakSeconds,
     activeLevelIndex,
     now,
-  } = useTournamentClock(tournament);
+  } = useTournamentClock(tournament, { canStartFromSchedule: !runningLimitMessage });
 
   useClockSounds({
     structure,
@@ -161,34 +170,34 @@ export default function ControlPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsRemaining, currentLevel, structure, tournament?.status]);
 
-  // A scheduled tournament does not wait for this screen. Its clock is derived
-  // from the start time, so it is already running on the TV before anyone opens
-  // the app — which is the only way a scheduled start is any use.
-  //
-  // What is left for this screen is bookkeeping, and it is idempotent: adopt the
-  // derived clock into a real row, so the operator's own controls (pause, jump,
-  // adjust) have something to write to and the run survives a reload, and record
-  // the status the dashboard reads.
-  //
-  // Registration is deliberately not part of this. It used to open itself the
-  // moment a scheduled instant passed; it is now something the operator does,
-  // below, so nothing here writes 'registering'.
-  // The tournament this screen is about. Nothing else is fetched here — the
-  // clock is its own subscription, and the projector resolves its background by
-  // URL rather than through the image list.
   useEffect(() => {
     void loadTournaments();
-  }, [loadTournaments]);
+    void loadPlan();
+  }, [loadTournaments, loadPlan]);
 
+  const adoptedRef = useRef<string | null>(null);
+
+ 
   useEffect(() => {
-    if (!tournament || !id) return;
+    if (!tournament || !id || !isClockDerived || !clock) return;
+    if (adoptedRef.current === id) return;
+    adoptedRef.current = id;
 
-    if (isClockDerived && clock) {
+    const startedAtEpochMs = clock.levelStartedAtEpochMs;
+
+    void (async () => {
+      try {
+        await saveTournament(startTournament(tournament));
+      } catch (error) {
+        showToast(
+          error instanceof Error ? error.message : "Could not start the tournament.",
+        );
+        return;
+      }
       // Started at the scheduled instant, not now, so adopting it doesn't
       // rewind the countdown the room has been watching.
-      start(id, clock.levelStartedAtEpochMs);
-      void saveTournament(startTournament(tournament));
-    }
+      start(id, startedAtEpochMs);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now]);
 
@@ -214,17 +223,26 @@ export default function ControlPage() {
   const registration = clock ? undefined : getRegistrationWindow(tournament, now);
   const upcoming = clock ? undefined : scheduleOccurrence(tournament, now);
   const startsAt = formatScheduleMoment(upcoming?.tournamentStartAt);
-  // Offered only inside the lead window, and only while the doors are still
-  // shut — a countdown already running has nothing left to open.
-  const canOpenRegistrationNow =
-    !clock && !registration && canOpenRegistration(tournament, now);
-  const secondsUntilCanOpen = clock
+  const secondsUntilRegistration = clock
     ? null
-    : secondsUntilRegistrationCanOpen(tournament, now);
-  // Counted down only once it is worth counting. Days out, the figure is noise
-  // beside the "Next session" slab, which already says when the night is.
-  const showRegistrationCountdown =
-    secondsUntilCanOpen != null && secondsUntilCanOpen <= REGISTRATION_HINT_SECONDS;
+    : secondsUntilRegistrationOpens(tournament, now);
+  const showRegistrationHint =
+    secondsUntilRegistration != null && secondsUntilRegistration <= REGISTRATION_HINT_SECONDS;
+
+  const projectorScreen = buildTournamentScreen(
+    tournament,
+    {
+      structure,
+      clock,
+      currentLevel,
+      nextLevel,
+      secondsRemaining,
+      nextBreakSeconds,
+      activeLevelIndex,
+      now,
+    },
+    resolveBackgroundPath(tournament.projectorBackgroundId),
+  );
 
   const prizePool = calculatePrizePoolForTournament(tournament);
   const priceLine = formatEntryPriceSummary(getEntryPriceLines(tournament));
@@ -244,6 +262,10 @@ export default function ControlPage() {
 
   async function handleStart() {
     if (!id || isStarting) return;
+    if (runningLimitMessage) {
+      showToast(runningLimitMessage);
+      return;
+    }
 
     setIsStarting(true);
     try {
@@ -256,14 +278,6 @@ export default function ControlPage() {
     }
 
     start(id, Date.now());
-  }
-
-  async function handleOpenRegistration() {
-    try {
-      await saveTournament(openRegistration(tournament!, new Date().toISOString()));
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Could not open registration.");
-    }
   }
 
   async function handleConfirmStop() {
@@ -311,7 +325,7 @@ export default function ControlPage() {
           title="Capture projector image"
           aria-label="Capture projector image"
           onClick={handleCapture}
-          disabled={!currentLevel || isCapturing}
+          disabled={!projectorScreen || isCapturing}
         >
           <CameraIcon className="size-[17px]" />
         </button>
@@ -331,10 +345,6 @@ export default function ControlPage() {
               <p className="display text-[29px] text-muted">Ready when you are.</p>
             )}
 
-            {/* What the schedule will do next, read back in the terms it was set
-                in. While registering this is tonight's own start time; before
-                that it is the next evening the schedule fires — tomorrow for a
-                dated one, the next chosen weekday for a weekly one. */}
             {startsAt && (
               <div className="slab flex flex-col gap-2 rounded-2xl px-5 py-4">
                 <span className="kicker text-[16px]">
@@ -347,19 +357,16 @@ export default function ControlPage() {
               </div>
             )}
 
-            {canOpenRegistrationNow && (
-              <button
-                type="button"
-                className="btn btn-secondary h-12 px-[26px] text-[19px]"
-                onClick={handleOpenRegistration}
-              >
-                <PlayersIcon className="size-[18px]" />
-                Open registration
-              </button>
-            )}
-            {showRegistrationCountdown && (
+            {showRegistrationHint && (
               <p className="text-center text-xl text-faint">
-                Registration can be opened {REGISTRATION_LEAD_HOURS} hours before the start.
+                The registration countdown starts {REGISTRATION_LEAD_HOURS} hours before
+                the start.
+              </p>
+            )}
+
+            {runningLimitMessage && (
+              <p className="flex items-center gap-1.5 text-center text-[18px] text-coral">
+                {runningLimitMessage}
               </p>
             )}
 
@@ -367,7 +374,7 @@ export default function ControlPage() {
               type="button"
               className="btn btn-primary h-14 px-[30px] text-[20px]"
               onClick={handleStart}
-              disabled={isStarting}
+              disabled={isStarting || Boolean(runningLimitMessage)}
             >
               {isStarting ? <Spinner /> : <PlayIcon className="size-[18px]" />}
               Start Tournament
@@ -610,26 +617,9 @@ export default function ControlPage() {
         onCancel={() => setConfirmingStop(false)}
       />
 
-      {/* Hosts the projector layout in a hidden 1920×1080 iframe so the capture
-          is a faithful HD image regardless of the device that triggered it. */}
-      {currentLevel && (
+      {projectorScreen && (
         <ProjectorCaptureFrame ref={captureFrameRef}>
-          <ProjectorView
-            {...buildProjectorData(
-              tournament,
-              {
-                structure,
-                currentLevel,
-                nextLevel,
-                secondsRemaining,
-                nextBreakSeconds,
-                activeLevelIndex,
-                isPaused: clock?.isPaused ?? false,
-                isFinished,
-              },
-              resolveBackgroundPath(tournament.projectorBackgroundId),
-            )}
-          />
+          <ProjectorView {...projectorScreen} />
         </ProjectorCaptureFrame>
       )}
 

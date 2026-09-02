@@ -6,8 +6,9 @@ import type { Database } from './database.types';
 
 type TournamentRow = Database['public']['Tables']['tournaments']['Row'];
 
-/** Also used for the public join-code RPC result, which omits owner_id. */
-function rowToTournament(row: Omit<TournamentRow, 'owner_id'>): TournamentConfig {
+function rowToTournament(
+  row: Omit<TournamentRow, 'owner_id'> & { schedule_start_allowed?: boolean | null },
+): TournamentConfig {
   return {
     id: row.id,
     name: row.name,
@@ -44,7 +45,7 @@ function rowToTournament(row: Omit<TournamentRow, 'owner_id'>): TournamentConfig
     scheduleWeekdays: row.schedule_weekdays ?? undefined,
     startTime: row.start_time ?? undefined,
     scheduleDismissedAt: row.schedule_dismissed_at ?? undefined,
-    registrationOpenedAt: row.registration_opened_at ?? undefined,
+    scheduleStartAllowed: row.schedule_start_allowed ?? undefined,
     regEndTime: row.reg_end_time ?? undefined,
     createdAt: row.created_at,
     status: row.status,
@@ -87,7 +88,7 @@ function tournamentToRow(
     schedule_weekdays: tournament.scheduleWeekdays ?? [],
     start_time: tournament.startTime ?? null,
     schedule_dismissed_at: tournament.scheduleDismissedAt ?? null,
-    registration_opened_at: tournament.registrationOpenedAt ?? null,
+    registration_opened_at: null,
     reg_end_time: tournament.regEndTime ?? null,
     created_at: tournament.createdAt,
   };

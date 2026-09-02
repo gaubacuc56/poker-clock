@@ -179,17 +179,12 @@ export function draftToTournament(
     sounds: draft.sounds,
     projectorBackgroundId: draft.projectorBackgroundId || undefined,
     projectorLayout: draft.projectorLayout,
-    // Only the half that matches the chosen shape is written, so switching
-    // between them can't leave a stale dated occurrence behind a weekly one.
     scheduleRepeat: draft.scheduleRepeat,
     tournamentStartAt:
       draft.scheduleRepeat === 'once' ? scheduleLocalToIso(draft.tournamentStart) : undefined,
     scheduleWeekdays: draft.scheduleRepeat === 'weekly' ? [...draft.scheduleWeekdays] : [],
     startTime: draft.scheduleRepeat === 'weekly' ? draft.startTime || undefined : undefined,
-    // Both carried, never edited: one records what the admin already dismissed,
-    // the other that they already opened the doors on the run in play.
     scheduleDismissedAt: existing?.scheduleDismissedAt,
-    registrationOpenedAt: existing?.registrationOpenedAt,
     regEndTime: draft.regEndTime || undefined,
     createdAt: existing?.createdAt ?? now(),
     status: existing?.status ?? 'setup',

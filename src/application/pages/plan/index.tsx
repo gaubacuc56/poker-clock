@@ -67,7 +67,6 @@ export default function PlanPage() {
     <Screen>
       <TopBar>
         <BackLink to="/settings" label="Back to settings" />
-        <h1 className="text-[22px]">Plan</h1>
       </TopBar>
 
       <div className="scroll felt px-4 py-3.5">

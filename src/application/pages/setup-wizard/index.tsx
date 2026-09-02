@@ -42,7 +42,10 @@ import Toast from '@application/components/ui/Toast';
 export default function SetupWizardPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const isCreating = id == null;
   const existing = useTournamentStore((state) => (id ? state.getById(id) : undefined));
+  const tournamentsLoaded = useTournamentStore((state) => state.isLoaded);
+  const planLoaded = usePlanStore((state) => state.isLoaded);
   const saveTournament = useTournamentStore((state) => state.save);
   const currencies = useCurrencyStore((state) => state.currencies);
   const backgroundOptions = useBackgroundStore((state) => state.backgrounds);
@@ -159,33 +162,54 @@ export default function SetupWizardPage() {
     setDraft((d) => ({ ...d, sounds: { ...d.sounds, [key]: value } }));
   }
 
+  const scheduleLocked =
+    draft.scheduleRepeat === 'once' && !!existing && hasTournamentStarted(existing.status);
+
+  const schedule = {
+    scheduleRepeat: draft.scheduleRepeat,
+    tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
+    scheduleWeekdays: draft.scheduleWeekdays,
+    startTime: draft.startTime,
+  };
+
   const basicsError =
     validateRebuyAddOnPrices({
       allowRebuy: draft.allowRebuy,
       rebuyPrice: Number(draft.rebuyPrice),
       allowAddOn: draft.allowAddOn,
       addOnPrice: Number(draft.addOnPrice),
-    }) ??
-    validateSchedule({
-      scheduleRepeat: draft.scheduleRepeat,
-      tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
-      scheduleWeekdays: draft.scheduleWeekdays,
-      startTime: draft.startTime,
-    });
+    }) ?? validateSchedule(schedule);
 
-  // Only a new tournament counts against the allowance — editing one the account
-  // already has doesn't add to the total, however full the plan is.
-  const planError = existing
-    ? null
-    : planLimitMessage(plan, 'tournaments', tournaments.length);
+  const scheduleTimingError = scheduleLocked ? null : validateSchedule(schedule, Date.now());
+
+  const planError = isCreating
+    ? planLimitMessage(plan, 'tournaments', tournaments.length)
+    : null;
+
+  useEffect(() => {
+    if (planError && tournamentsLoaded && planLoaded) {
+      navigate('/', { replace: true });
+    }
+  }, [planError, tournamentsLoaded, planLoaded, navigate]);
+
+  const saveError = basicsError ?? scheduleTimingError ?? planError;
 
   async function handleFinish() {
-    if (basicsError) {
+    const startHasGone = !scheduleLocked && validateSchedule(schedule, Date.now());
+    if (basicsError || startHasGone) {
       setStep(STEP_INDEX.basics);
       return;
     }
-    if (planError) {
-      showToast(planError);
+
+    const limitNow = isCreating
+      ? planLimitMessage(
+          usePlanStore.getState().plan,
+          'tournaments',
+          useTournamentStore.getState().tournaments.length,
+        )
+      : null;
+    if (limitNow) {
+      showToast(limitNow);
       return;
     }
     const tournament = draftToTournament(
@@ -200,19 +224,12 @@ export default function SetupWizardPage() {
       await saveTournament(tournament);
       navigate(`/tournament/${tournament.id}/control`);
     } catch (error) {
-      // The plan limits are enforced by database triggers, so a save can be
-      // refused for a reason the form had no way to see — a second browser
-      // having used the last slot, say. Whatever it says, the operator is the
-      // one who needs to read it.
       showToast(error instanceof Error ? error.message : 'Could not save the tournament.');
     } finally {
       setIsSaving(false);
     }
   }
 
-  // A payout total that doesn't match the guarantee is surfaced as a warning in
-  // the editor, not a block — some tournaments intentionally pay out something
-  // other than the advertised guarantee.
   const canAdvance = step !== STEP_INDEX.basics || !basicsError;
 
   return (
@@ -234,19 +251,18 @@ export default function SetupWizardPage() {
             <p className="mb-3 text-[18px] text-coral">{planError}</p>
           )}
 
+          {step !== STEP_INDEX.basics && scheduleTimingError && (
+            <p className="mb-3 text-[18px] text-coral">{scheduleTimingError}</p>
+          )}
+
           {step === STEP_INDEX.basics && (
             <BasicsStep
               draft={draft}
               currencies={currencies}
-              // Only a dated schedule locks once the clock has run: it describes
-              // an evening that has happened. A weekly one describes the
-              // arrangement, which stays editable mid-run — otherwise setting it
-              // up once, the whole point, would be impossible to correct.
-              scheduleLocked={
-                draft.scheduleRepeat === 'once' &&
-                !!existing &&
-                hasTournamentStarted(existing.status)
-              }
+              otherTournaments={tournaments.filter(
+                (tournament) => tournament.id !== existing?.id,
+              )}
+              scheduleLocked={scheduleLocked}
               onChange={update}
             />
           )}
@@ -310,7 +326,7 @@ export default function SetupWizardPage() {
         isEditing={Boolean(existing)}
         isSaving={isSaving}
         canAdvance={canAdvance}
-        canSave={!basicsError && !planError}
+        canSave={!saveError}
         onBack={() => setStep((s) => Math.max(0, s - 1))}
         onNext={() => setStep((s) => Math.min(LAST_STEP, s + 1))}
         onFinish={handleFinish}

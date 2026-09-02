@@ -1,10 +1,13 @@
 import type { Currency } from '@domain/entities';
 import type { TournamentDraft } from '@domain/rules/tournamentDraft';
 import {
+  findScheduleClashes,
+  formatScheduleMoment,
   REGISTRATION_LEAD_HOURS,
   scheduleLocalToIso,
   validateSchedule,
   WEEKDAY_LABELS,
+  type NamedSchedule,
   type ScheduleRepeat,
 } from '@domain/rules/tournamentSchedule';
 import { WarningIcon } from '@application/components/ui/icons';
@@ -16,37 +19,32 @@ import Switch from './Switch';
 interface BasicsStepProps {
   draft: TournamentDraft;
   currencies: Currency[];
-  /** The clock has already been started — the schedule that led up to it is
-   *  history and can no longer be rewritten. */
+  otherTournaments?: readonly NamedSchedule[];
   scheduleLocked?: boolean;
   onChange: <K extends keyof TournamentDraft>(key: K, value: TournamentDraft[K]) => void;
 }
 
-/** Everything about the tournament that isn't a structure: name, prices, sizes. */
 export default function BasicsStep({
   draft,
   currencies,
+  otherTournaments = [],
   scheduleLocked = false,
   onChange,
 }: BasicsStepProps) {
   const rebuyPriceValid = !draft.allowRebuy || Number(draft.rebuyPrice) > 0;
   const addOnPriceValid = !draft.allowAddOn || Number(draft.addOnPrice) > 0;
-  const scheduleError = validateSchedule(
-    {
-      scheduleRepeat: draft.scheduleRepeat,
-      tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
-      scheduleWeekdays: draft.scheduleWeekdays,
-      startTime: draft.startTime,
-    },
-    scheduleLocked ? undefined : Date.now(),
-  );
-
+  const schedule = {
+    scheduleRepeat: draft.scheduleRepeat,
+    tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
+    scheduleWeekdays: draft.scheduleWeekdays,
+    startTime: draft.startTime,
+  };
+  const scheduleError = validateSchedule(schedule, scheduleLocked ? undefined : Date.now());
+  const clashes = findScheduleClashes(schedule, otherTournaments, Date.now());
   const regEndFilled = Boolean(draft.lateRegLevel || draft.regEndTime);
 
   return (
     <>
-      {/* One field per row at every width — the basics step reads
-          top-to-bottom rather than wrapping into uneven columns. */}
       <div className="grid grid-cols-1 gap-3">
         <Field label="Tournament name">
           <input
@@ -191,8 +189,28 @@ export default function BasicsStep({
         )}
 
         <p className="text-[16px] text-muted">
-          Registration is available {REGISTRATION_LEAD_HOURS}  hours before the tournament start.
+          The registration countdown automatically run {REGISTRATION_LEAD_HOURS} hours before
+          the tournament start.
         </p>
+
+        {clashes.length > 0 && (
+          <div className="sunken flex flex-col px-3.5 pt-[11px] pb-3">
+            <span className="kicker text-[15px]">Scheduled around this time</span>
+            <ul className="m-0 mt-2 flex list-none flex-col gap-1.5 p-0">
+              {clashes.map((clash) => (
+                <li
+                  key={clash.id}
+                  className="flex items-center justify-between gap-3 border-t border-hair pt-1.5 first:border-0 first:pt-0"
+                >
+                  <span className="min-w-0 truncate text-[17px] text-fg">{clash.name}</span>
+                  <span className="tag flex-none bg-accent text-[15px] font-semibold whitespace-nowrap text-accent-on tabular-nums">
+                    {formatScheduleMoment(clash.startsAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
     

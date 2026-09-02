@@ -1,6 +1,16 @@
-import type { BlindLevel, BlindStructure, ClockState, TournamentConfig } from '../entities';
+import type {
+  BlindLevel,
+  BlindStructure,
+  ClockState,
+  TournamentConfig,
+  TournamentStatus,
+} from '../entities';
 import { createClockState, isClockFinished } from './blindProgression';
-import { scheduleOccurrence, type TournamentSchedule } from './tournamentSchedule';
+import {
+  getSchedulePhase,
+  scheduleOccurrence,
+  type TournamentSchedule,
+} from './tournamentSchedule';
 
 /** New tournaments — and any tournament that's just been stopped — start with this many buy-ins already counted. */
 export const DEFAULT_ENTRANT_COUNT = 5;
@@ -11,23 +21,33 @@ export function startTournament(tournament: TournamentConfig): TournamentConfig 
 }
 
 /**
- * Opening the doors: the operator's own act, and the only thing that starts the
- * registration countdown now that there is no scheduled registration instant.
+ * How long a schedule keeps implying a clock nobody has written down.
  *
- * `nowIso` is both the record that it happened and where the countdown's
- * progress bar starts, so the room's countdown runs from the moment the doors
- * actually opened rather than from a time typed in yesterday. Callers gate this
- * on `canOpenRegistration`.
+ * `advance_tournament_schedules` runs once a minute, so a start that has just
+ * come round is legitimately unwritten for up to that long, and the screens
+ * cover the gap by deriving the clock themselves — which is what lets a TV with
+ * no app open anywhere begin on time.
+ *
+ * Past this, silence means refusal rather than lag. The database enforces the
+ * plan's running-tournament allowance on the very update the job makes, so a
+ * scheduled tournament whose status still says it never started is one that was
+ * not allowed to, and a screen that kept deriving a clock for it would be
+ * showing a tournament that is not running — the allowance bypassed on screen
+ * even though the row says no. Two minutes: long enough that a slow or skipped
+ * sweep is not mistaken for a refusal.
  */
-export function openRegistration(
-  tournament: TournamentConfig,
-  nowIso: string,
-): TournamentConfig {
-  return { ...tournament, status: 'registering', registrationOpenedAt: nowIso };
-}
+export const SCHEDULED_START_GRACE_MS = 2 * 60_000;
 
+/**
+ * The clock a schedule implies right now, for a screen that has none written —
+ * or null when the schedule implies nothing.
+ *
+ * `status` is read, not just the schedule: see
+ * {@link SCHEDULED_START_GRACE_MS} for what an unwritten start means once the
+ * scheduler has had its minute.
+ */
 export function scheduledClockState(
-  schedule: TournamentSchedule,
+  schedule: TournamentSchedule & { status?: TournamentStatus },
   nowMs: number,
 ): ClockState | null {
   // Resolved, so a weekly schedule derives its clock from tonight's occurrence
@@ -36,7 +56,32 @@ export function scheduledClockState(
   if (!tournamentStartAt) return null;
   const startAt = Date.parse(tournamentStartAt);
   if (Number.isNaN(startAt) || nowMs < startAt) return null;
+  if (
+    nowMs - startAt > SCHEDULED_START_GRACE_MS &&
+    schedule.status != null &&
+    !hasTournamentStarted(schedule.status)
+  ) {
+    return null;
+  }
   return createClockState(startAt);
+}
+
+/**
+ * How many of an account's tournaments are in play, ignoring one of them —
+ * what the plan's running allowance is counted against when that one is about
+ * to start.
+ *
+ * Counted here rather than in `planLimits` because "in play" is a lifecycle
+ * fact: the same two statuses the database counts, and the same two
+ * `isTournamentInPlay` answers for.
+ */
+export function countRunningTournaments(
+  tournaments: readonly { id: string; status: TournamentStatus }[],
+  exceptId?: string,
+): number {
+  return tournaments.filter(
+    (tournament) => tournament.id !== exceptId && isTournamentInPlay(tournament.status),
+  ).length;
 }
 
 /**
@@ -59,6 +104,22 @@ export function isTournamentInPlay(status: TournamentConfig['status']): boolean 
  */
 export function hasTournamentStarted(status: TournamentConfig['status']): boolean {
   return status === 'running' || status === 'paused' || status === 'finished';
+}
+
+/**
+ * The status a tournament reads as right now, for a screen that lists it.
+ *
+ * Registration is derived rather than written — nothing sets 'registering' any
+ * more, because the countdown opens itself — so a tournament in the middle of
+ * its countdown would otherwise be listed as 'setup', which is the one thing it
+ * is not. Every other status is stored and is simply itself.
+ */
+export function displayedTournamentStatus(
+  tournament: TournamentConfig,
+  nowMs: number,
+): TournamentStatus {
+  if (tournament.status !== 'setup') return tournament.status;
+  return getSchedulePhase(tournament, nowMs) === 'registering' ? 'registering' : 'setup';
 }
 
 /**
@@ -123,9 +184,6 @@ export function stopTournament(
     rebuyCount: 0,
     payoutTiers: [],
     payoutUnit: undefined,
-    // The doors close with the run. Left set, the countdown would reopen on the
-    // next occurrence without anyone asking for it.
-    registrationOpenedAt: undefined,
   };
 
   return tournament.scheduleRepeat === 'weekly'

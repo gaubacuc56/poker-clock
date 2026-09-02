@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { usePlanStore, useBackgroundStore } from '@composition/container';
+import { usePlanStore, useBackgroundStore, useToast } from '@composition/container';
 import type { Background } from '@domain/entities';
 import { formatPlanAllowance, planLimit, planLimitMessage } from '@domain/rules/planLimits';
 import Screen from '@application/components/template/Screen';
 import TopBar from '@application/components/template/TopBar';
 import BackLink from '@application/components/template/TopBar/sections/BackLink';
 import ConfirmDialog from '@application/components/ui/ConfirmDialog';
+import Toast from '@application/components/ui/Toast';
 import Spinner from '@application/components/ui/Spinner';
 import { TrashIcon, UploadIcon } from '@application/components/ui/icons';
 
@@ -19,6 +20,7 @@ export default function BackgroundsPage() {
   const plan = usePlanStore((state) => state.plan);
   const loadPlan = usePlanStore((state) => state.load);
 
+  const { toastMessage, showToast } = useToast();
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Background | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -39,8 +41,13 @@ export default function BackgroundsPage() {
     e.target.value = '';
     if (!file) return;
 
-    if (limitReached) {
-      setError(limitReached);
+    const limitNow = planLimitMessage(
+      usePlanStore.getState().plan,
+      'backgrounds',
+      useBackgroundStore.getState().backgrounds.length,
+    );
+    if (limitNow) {
+      showToast(limitNow);
       return;
     }
 
@@ -63,7 +70,6 @@ export default function BackgroundsPage() {
     <Screen>
       <TopBar>
         <BackLink to="/settings" label="Back to settings" />
-        <h1 className="text-[22px]">Projector backgrounds</h1>
         <button
           type="button"
           className="btn btn-primary ml-auto"
@@ -92,6 +98,11 @@ export default function BackgroundsPage() {
             <p className="mb-3 text-[16px] text-faint">
               {formatPlanAllowance(limit, backgrounds.length)} backgrounds used on your plan.
             </p>
+          )}
+
+         
+          {limitReached && !error && (
+            <p className="mb-3 text-[18px] text-coral">{limitReached}</p>
           )}
 
           {isLoaded && backgrounds.length === 0 ? (
@@ -129,6 +140,8 @@ export default function BackgroundsPage() {
           )}
         </div>
       </div>
+
+      <Toast message={toastMessage} />
 
       <ConfirmDialog
         open={pendingDelete !== null}

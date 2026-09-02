@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useTournamentStore, useToast } from '@composition/container';
+import {
+  useTournamentStore,
+  useClockTick,
+  usePlanStore,
+  useToast,
+} from '@composition/container';
 import type { TournamentConfig } from '@domain/entities';
 import { formatNumber } from '@domain/rules/format';
+import { displayedTournamentStatus } from '@domain/rules/tournamentLifecycle';
+import { planLimitMessage } from '@domain/rules/planLimits';
 import { copyProjectorLink } from '../../shared/projectorLink';
 import Screen from '@application/components/template/Screen';
 import TopBar from '@application/components/template/TopBar';
@@ -24,13 +31,17 @@ export default function DashboardPage() {
   const remove = useTournamentStore((state) => state.remove);
   const tournamentsLoaded = useTournamentStore((state) => state.isLoaded);
   const loadTournaments = useTournamentStore((state) => state.load);
+  const plan = usePlanStore((state) => state.plan);
+  const loadPlan = usePlanStore((state) => state.load);
   const { toastMessage, showToast } = useToast();
+  const now = useClockTick(30_000);
 
-  // Each screen asks for what it shows. The store fetches once and hands the
-  // same request to whoever asks next, so this costs nothing on a revisit.
   useEffect(() => {
     void loadTournaments();
-  }, [loadTournaments]);
+    void loadPlan();
+  }, [loadTournaments, loadPlan]);
+
+  const tournamentLimitMessage = planLimitMessage(plan, 'tournaments', tournaments.length);
 
   const [pendingDelete, setPendingDelete] = useState<TournamentConfig | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -59,14 +70,30 @@ export default function DashboardPage() {
       <TopBar tone="rail">
         <Brand className="size-[34px]" />
         <h1 className="engrave display text-[18px] hidden sm:block">Tournaments</h1>
-        <Link to="/setup/new" className="btn btn-primary ml-auto text-[15px]">
-          <PlusIcon className="size-[17px]" />
-          New Tournament
-        </Link>
+        {tournamentLimitMessage ? (
+          <button
+            type="button"
+            className="btn btn-primary ml-auto text-[15px]"
+            disabled
+            title={tournamentLimitMessage}
+          >
+            <PlusIcon className="size-[17px]" />
+            New Tournament
+          </button>
+        ) : (
+          <Link to="/setup/new" className="btn btn-primary ml-auto text-[15px]">
+            <PlusIcon className="size-[17px]" />
+            New Tournament
+          </Link>
+        )}
       </TopBar>
 
       <div className="scroll felt px-4 pt-4 pb-[22px]">
         <div className="content flex flex-col gap-3">
+          {tournamentLimitMessage && (
+            <p className="text-[18px] text-coral">{tournamentLimitMessage}</p>
+          )}
+
           {!tournamentsLoaded ? (
             <p className="px-2 py-10 text-center text-[16px] text-faint">Loading…</p>
           ) : tournaments.length === 0 ? (
@@ -77,7 +104,7 @@ export default function DashboardPage() {
             tournaments.map((tournament) => (
               <div key={tournament.id} className="tkt">
                 <div className="tkt-main">
-                  <TournamentStatusBadge status={tournament.status} />
+                  <TournamentStatusBadge status={displayedTournamentStatus(tournament, now)} />
                   <Link
                     to={`/tournament/${tournament.id}/control`}
                     className="tkt-name engrave display mt-[3px] text-[26px] leading-[1.2]"

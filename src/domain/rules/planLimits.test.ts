@@ -79,23 +79,26 @@ describe('planLimitMessage', () => {
     expect(planLimitMessage(makePlan(), 'tournaments', 3)).toBeNull();
   });
 
-  it('names the plan and the number', () => {
+  it('names the number that has been reached', () => {
     expect(planLimitMessage(makePlan({ maxTour: 10 }), 'tournaments', 10)).toBe(
-      'Plan limit reached — BASIC allows 10 tournaments.',
+      'Maximum 10 tournaments reached.',
     );
   });
 
   it('reads as one thing when the allowance is one', () => {
     expect(planLimitMessage(makePlan({ maxRunningTour: 1 }), 'runningTournaments', 1)).toBe(
-      'Plan limit reached — BASIC allows 1 running tournament.',
+      'Maximum 1 running tournament reached.',
+    );
+    expect(planLimitMessage(makePlan({ maxRunningTour: 3 }), 'runningTournaments', 3)).toBe(
+      'Maximum 3 running tournaments reached.',
     );
   });
 
-  it('quotes the plan actually being enforced, not the lapsed one', () => {
+  it('quotes the allowance, not which plan it came from', () => {
+    // A lapsed plan is held to BASIC's numbers, but the operator is told the
+    // number they have hit rather than the name of the plan behind it.
     const lapsed = makePlan({ planCode: 'MODERATOR', isActive: false, maxTour: 10 });
-    expect(planLimitMessage(lapsed, 'tournaments', 10)).toBe(
-      'Plan limit reached — BASIC allows 10 tournaments.',
-    );
+    expect(planLimitMessage(lapsed, 'tournaments', 10)).toBe('Maximum 10 tournaments reached.');
   });
 });
 

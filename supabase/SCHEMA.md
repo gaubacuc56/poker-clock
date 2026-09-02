@@ -1,6 +1,6 @@
 # poker-clock — Supabase schema
 
-Entity-relationship diagram for every migration in `migrations/`, `0001_init.sql` through `0013_plans_units_ownership_and_registration_trigger.sql`. Keep this file in sync whenever a migration changes.
+Entity-relationship diagram for every migration in `migrations/`, `0001_init.sql` through `0014_projector_start_allowance.sql`. Keep this file in sync whenever a migration changes.
 
 ```mermaid
 erDiagram
@@ -68,7 +68,7 @@ erDiagram
         smallint_arr schedule_weekdays "0012 — weekly: 0=Sun..6=Sat, UTC+7"
         text start_time "nullable, 0012 — weekly: HH:mm UTC+7"
         timestamptz schedule_dismissed_at "nullable, 0012 — Stop dismissed this night"
-        timestamptz registration_opened_at "nullable, 0013 — the operator opened the doors"
+        timestamptz registration_opened_at "nullable, 0013 — legacy, no longer read or written"
         text reg_end_time "nullable, 0011 — HH:mm wall clock, no date"
         timestamptz created_at
         timestamptz updated_at
@@ -132,7 +132,7 @@ The bucket is Public so the unauthenticated `/p/:join_code` projector view can r
 
 `tournament_start_at` is nullable — an unscheduled tournament, the norm, has none and is started by hand exactly as before. It is a real `timestamptz` column rather than a key in the `projector` jsonb bag because the clock starts itself off it: the value has to be something Postgres can type-check and compare, not presentation.
 
-`0010` shipped a second instant beside it, `registration_start_at`; `0013` removes it — see "Registration is opened by hand" below.
+`0010` shipped a second instant beside it, `registration_start_at`; `0013` removes it — see "The registration countdown" below.
 
 Instants are stored in UTC; the organiser picks them in UTC+7 (`src/domain/rules/tournamentSchedule.ts` owns that conversion, and ICT's lack of DST is why a fixed offset is the whole rule).
 
@@ -167,11 +167,19 @@ Nothing outside `src/domain/rules/tournamentSchedule.ts` knows there are two sha
 | Start time | `status → running`, insert `clock_states` with `level_started_at_epoch_ms` = the scheduled instant |
 | Last level runs out | `status → finished` |
 
-(`0012` also had a "registration time → `status: setup → registering`" row. `0013` removes it: opening the doors is an act, and an act with nobody there to perform it does not happen.)
+(`0012` also had a "registration time → `status: setup → registering`" row. `0013` removes it, and nothing has replaced it: the countdown is derived on every screen from the start time, so there is no registration state to write. `status` stays `setup` until the tournament actually starts.)
+
+The start row is where the plan's running-tournament allowance is enforced: `tournaments_enforce_plan_limits` fires on exactly this `update`, so an account already at its limit has the start refused. Each tournament starts in its own sub-transaction, so one refusal doesn't stop the sweep for everybody else — and because the `clock_states` insert is inside that block, a refused start leaves no clock row behind.
+
+The screens have to agree with that refusal, or the allowance is enforced in the database and bypassed on the TV. Two things make them:
+
+- The control screen writes the **status first and the clock only if that write is accepted**, and refuses the start itself when it can already see the account is at its limit (`planLimits` + `countRunningTournaments`).
+- A screen derives a clock from the schedule only within `SCHEDULED_START_GRACE_MS` (two minutes, `src/domain/rules/tournamentLifecycle.ts`) of the start. Inside it, an unwritten start is the once-a-minute job not having run yet, and the room begins on time. Past it, a `status` that still says the tournament never started means it was refused, and no screen goes on showing a clock for it.
+- The public projector cannot see the account's plan, so `get_tournament_by_join_code` tells it — see "The projector's start allowance" below. That is the answer that stops the TV *immediately* rather than two minutes in.
 
 It is idempotent: every branch is guarded on the status it changes and the clock row is an `on conflict do nothing` insert, so repeated runs cost nothing. The start instant is used rather than `now()`, so a tournament the job reaches late is late-into-itself, not starting fresh — the same rule the client uses when adopting a derived clock. Finishing applies to manually started tournaments too, since the status should be true whoever started it, and it changes only the status: the clock row is left alone so the result keeps showing until the admin stops the tournament. The function is `security definer` and writes across owners, so it is revoked from `public` — only the scheduler may call it.
 
-Stop stays authoritative over the job. It deletes the clock row, clears `registration_opened_at`, and either clears a dated schedule or records `schedule_dismissed_at`, so `tournament_occurrence` stops returning an evening that has started and there is nothing left to re-insert.
+Stop stays authoritative over the job. It deletes the clock row and either clears a dated schedule or records `schedule_dismissed_at`, so `tournament_occurrence` stops returning an evening that has started and there is nothing left to re-insert.
 
 A minute is the job's resolution because a minute is the resolution a schedule is set at. It is only the bookkeeping cadence — the room still sees the countdown update every 250ms.
 
@@ -215,18 +223,30 @@ An account may not shadow a standard unit. That is a trigger rather than an inde
 
 The standard set is now VND and USD. `KEYS` is dropped, but only when nothing is priced in it: deleting a unit in use would silently relabel somebody's tournament.
 
-## Registration is opened by hand (`0013`)
+## The projector's start allowance (`0014_projector_start_allowance.sql`)
 
-A scheduled registration start was a second instant to keep correct, and it opened the board whether or not anybody was in the room. `registration_start_at` and `registration_time` are both dropped. There is one configurable instant — when the tournament starts — and the countdown is a thing the organiser triggers:
+`get_tournament_by_join_code` gains one computed column, `schedule_start_allowed`: may this tournament start itself off its schedule right now?
 
-| When | What is offered |
+It exists because the two halves of the lifecycle answer to different things. The allowance is enforced on a row — the `status → running` update — while the screens do not wait for that row: they derive the clock from the schedule so a TV with no app open anywhere starts on time. The control screen can tell when that write would be refused, because it holds the account's plan and its other tournaments. The projector holds neither, and went on counting down a tournament the database had refused to start; an allowance enforced in the row and bypassed on the television is not enforced.
+
+The column is the same comparison `tournaments_enforce_plan_limits` makes — the owner's `max_running_tour` against the owner's *other* tournaments in `running`/`paused` — so the trigger and the TV cannot disagree about what is allowed, only about when they were asked (the projector re-reads this every 8 seconds).
+
+It is deliberately a bare boolean: the caller already has the join code, and this names neither the plan nor the number. `true` when the plan does not cap running tournaments, and `true` when there is no plan row to read, matching how `planLimits` treats an unknown plan.
+
+The app treats an absent value as `true`, so a deployment running ahead of this migration simply falls back to the two-minute grace above.
+
+## The registration countdown (`0013`, amended since)
+
+A scheduled registration start was a second instant to keep correct, and it opened the board whether or not anybody was in the room. `registration_start_at` and `registration_time` are both dropped. There is one configurable instant — when the tournament starts — and the countdown is worked out from it:
+
+| When | What the screens show |
 |---|---|
-| More than 6 hours before the start | Nothing; the countdown cannot be opened |
-| Within 6 hours | The Control screen offers **Open registration** |
-| Opened | The board counts from that moment to the start |
+| More than 6 hours before the start | The next session's date and time |
+| Within 6 hours | The countdown, full at 6 hours and empty as the start arrives |
+| From the start | The clock |
 
-`registration_opened_at` is that trigger, recorded. It is an instant rather than a flag because it is also where the progress bar starts: the room's countdown runs from when the doors were actually opened, not from a time typed in yesterday — so opening it late makes the bar shorter, not fuller.
+Nothing is stored and nothing is pressed. `0013` shipped an **Open registration** button and stamped `registration_opened_at`; that column is now legacy — no screen reads it and every save writes null. A board that only goes up if somebody is in the room to raise it is not a schedule, and the stamp was a second thing to keep in step with the start time it was already derived from.
 
-Nothing needs to know which occurrence a stamp belongs to. One older than six hours before the start in play cannot have opened that occurrence, so a weekly tournament's next night begins closed without anything being cleared. Stop clears it anyway, since the run it belonged to is over.
+Because the answer is a comparison rather than a state, a weekly tournament's next night puts its own board up with nothing cleared in between, and every screen agrees on the countdown without a round trip: the control screen, the projector, and the projector image the control screen captures — the board is capturable exactly like the clock.
 
-The lead time lives in `REGISTRATION_LEAD_HOURS` in `src/domain/rules/tournamentSchedule.ts`. The database has no opinion on it — it is a rule about what the operator may do, and the operator is always on a screen — so unlike the schedule itself there is no second copy to drift.
+The lead time lives in `REGISTRATION_LEAD_HOURS` in `src/domain/rules/tournamentSchedule.ts`. The database has no opinion on it — it never writes a registration state at all — so unlike the schedule itself there is no second copy to drift.

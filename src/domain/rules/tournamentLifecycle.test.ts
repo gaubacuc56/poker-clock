@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  countRunningTournaments,
   DEFAULT_ENTRANT_COUNT,
   hasTournamentStarted,
   isTournamentInPlay,
-  openRegistration,
+  SCHEDULED_START_GRACE_MS,
   scheduledClockState,
   startTournament,
   stopTournament,
@@ -66,13 +67,37 @@ describe('scheduledClockState', () => {
 
   it('is null when the tournament is started by hand', () => {
     expect(scheduledClockState({}, at('2026-08-10T14:00:00Z'))).toBeNull();
-    // Opening the doors is not a start: it schedules nothing.
+  });
+
+  it('gives the scheduler its grace, then reads silence as a refusal', () => {
+    // The status still says the tournament never started. Inside the grace that
+    // is the once-a-minute job not having run yet, so the clock is derived and
+    // the room starts on time.
+    const pending = { tournamentStartAt, status: 'setup' as const };
+    expect(
+      scheduledClockState(pending, at(tournamentStartAt) + SCHEDULED_START_GRACE_MS),
+    ).not.toBeNull();
+
+    // Past it, the job has had its chance and declined — the plan's running
+    // allowance is the reason there is — so nothing is derived and no screen
+    // shows a tournament that is not running.
+    expect(
+      scheduledClockState(pending, at(tournamentStartAt) + SCHEDULED_START_GRACE_MS + 1),
+    ).toBeNull();
+
+    // A tournament that did start keeps its clock however long ago that was.
     expect(
       scheduledClockState(
-        { registrationOpenedAt: '2026-08-10T12:00:00.000Z' },
-        at('2026-08-10T14:00:00Z'),
+        { tournamentStartAt, status: 'running' },
+        at('2026-08-10T20:00:00Z'),
       ),
-    ).toBeNull();
+    ).not.toBeNull();
+  });
+
+  it('derives without a status at all — the projector before its row arrives', () => {
+    expect(
+      scheduledClockState({ tournamentStartAt }, at('2026-08-10T20:00:00Z')),
+    ).not.toBeNull();
   });
 
   it('is null once stopping has cleared the schedule', () => {
@@ -90,7 +115,9 @@ describe('scheduledClockState', () => {
       scheduleWeekdays: [1],
       startTime: '20:00',
     });
-    const clock = scheduledClockState(weekly, at('2026-08-10T14:00:00Z'));
+    // Half a minute in — inside the scheduler's grace, so this is the screens
+    // covering the gap before the job writes the row.
+    const clock = scheduledClockState(weekly, at('2026-08-10T13:00:30Z'));
     expect(clock?.levelStartedAtEpochMs).toBe(at('2026-08-10T13:00:00Z'));
   });
 
@@ -107,9 +134,9 @@ describe('scheduledClockState', () => {
     // Tonight is over…
     expect(scheduledClockState(dismissed, at('2026-08-10T15:00:00Z'))).toBeNull();
     // …and the same weekday next week starts on its own.
-    expect(scheduledClockState(dismissed, at('2026-08-17T14:00:00Z'))?.levelStartedAtEpochMs).toBe(
-      at('2026-08-17T13:00:00Z'),
-    );
+    expect(
+      scheduledClockState(dismissed, at('2026-08-17T13:00:30Z'))?.levelStartedAtEpochMs,
+    ).toBe(at('2026-08-17T13:00:00Z'));
   });
 });
 
@@ -194,34 +221,22 @@ describe('stopTournament', () => {
     expect(stopTournament(tournament, STOPPED_AT).tournamentStartAt).toBeUndefined();
   });
 
-  it('closes the doors, on both kinds of schedule', () => {
-    const dated = makeTournament({
-      status: 'running',
-      tournamentStartAt: '2026-08-10T13:00:00.000Z',
-      registrationOpenedAt: '2026-08-10T12:00:00.000Z',
-    });
-    expect(stopTournament(dated, STOPPED_AT).registrationOpenedAt).toBeUndefined();
-
-    const weekly = makeTournament({
-      status: 'running',
-      scheduleRepeat: 'weekly',
-      scheduleWeekdays: [1],
-      startTime: '20:00',
-      registrationOpenedAt: '2026-08-10T12:00:00.000Z',
-    });
-    expect(stopTournament(weekly, STOPPED_AT).registrationOpenedAt).toBeUndefined();
-  });
 });
 
-describe('openRegistration', () => {
-  const OPENED_AT = '2026-08-10T12:00:00.000Z';
+describe('countRunningTournaments', () => {
+  const list = [
+    { id: 'a', status: 'running' as const },
+    { id: 'b', status: 'paused' as const },
+    { id: 'c', status: 'setup' as const },
+    { id: 'd', status: 'finished' as const },
+  ];
 
-  it('records the instant the operator opened the doors', () => {
-    const tournament = makeTournament({ status: 'setup' });
-    expect(openRegistration(tournament, OPENED_AT)).toEqual({
-      ...tournament,
-      status: 'registering',
-      registrationOpenedAt: OPENED_AT,
-    });
+  it('counts only the runs in play', () => {
+    expect(countRunningTournaments(list)).toBe(2);
+  });
+
+  it('leaves the one about to start out of its own count', () => {
+    expect(countRunningTournaments(list, 'a')).toBe(1);
+    expect(countRunningTournaments(list, 'c')).toBe(2);
   });
 });

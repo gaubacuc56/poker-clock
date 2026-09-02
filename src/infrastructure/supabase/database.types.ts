@@ -149,7 +149,13 @@ export interface Database {
     Functions: {
       get_tournament_by_join_code: {
         Args: { p_join_code: string };
-        Returns: Array<Omit<Database['public']['Tables']['tournaments']['Row'], 'owner_id'>>;
+        Returns: Array<
+          Omit<Database['public']['Tables']['tournaments']['Row'], 'owner_id'> & {
+            /** 0014 — whether the owner's plan still allows this one to start
+             *  itself off its schedule. Absent from the table; computed here. */
+            schedule_start_allowed: boolean | null;
+          }
+        >;
       };
       /** The signed-in account's plan and the allowances actually in force. */
       get_my_plan: {

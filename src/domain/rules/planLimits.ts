@@ -17,7 +17,7 @@ export type PlanLimitKind = 'tournaments' | 'runningTournaments' | 'backgrounds'
 
 const LIMIT_NOUNS: Record<PlanLimitKind, { one: string; many: string }> = {
   tournaments: { one: 'tournament', many: 'tournaments' },
-  runningTournaments: { one: 'running tournament', many: 'tournaments running at once' },
+  runningTournaments: { one: 'running tournament', many: 'running tournaments' },
   backgrounds: { one: 'background', many: 'backgrounds' },
 };
 
@@ -72,7 +72,7 @@ export function planLimitMessage(
   if (isWithinPlanLimit(plan, kind, used)) return null;
   const limit = planLimit(plan, kind)!;
   const noun = limit === 1 ? LIMIT_NOUNS[kind].one : LIMIT_NOUNS[kind].many;
-  return `Plan limit reached — ${effectivePlanCode(plan)} allows ${limit} ${noun}.`;
+  return `Maximum ${limit} ${noun} reached.`;
 }
 
 /** "3 of 10", or "3 of ∞" for an uncapped allowance. */

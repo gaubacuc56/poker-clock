@@ -83,11 +83,16 @@ export interface TournamentConfig {
   startTime?: string;
   scheduleDismissedAt?: string;
   /**
-   * When the operator opened the registration countdown, if they have. There is
-   * no scheduled registration start any more — the doors open when somebody
-   * opens them, within `REGISTRATION_LEAD_HOURS` of the start.
+   * Whether the owner's plan still allows this tournament to start itself off
+   * its schedule.
+   *
+   * Only the projector's join-code lookup fills this in: the account's own
+   * screens work it out from the tournaments and plan they already hold, and the
+   * public projector can see neither. Absent means "nobody said no", which is
+   * also how `planLimits` treats an unknown plan — the database is what actually
+   * refuses.
    */
-  registrationOpenedAt?: string;
+  scheduleStartAllowed?: boolean;
   /**
    * The wall-clock time `lateRegLevel` is expected at, as `HH:mm` — the other
    * half of the projector's "Reg End" announcement. A time of day with no date:

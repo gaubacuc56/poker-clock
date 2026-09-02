@@ -9,12 +9,9 @@ import {
   primeSounds,
 } from "@composition/container";
 import { DEFAULT_SOUND_SETTINGS } from "@domain/entities";
-import { buildProjectorData } from "@domain/rules/projectorData";
-import { isTournamentFinished } from "@domain/rules/tournamentLifecycle";
-import { getRegistrationWindow } from "@domain/rules/tournamentSchedule";
+import { buildTournamentScreen } from "@domain/rules/projectorData";
 import ProjectorView from "@application/components/template/ProjectorView";
-import type { TournamentClock } from "@application/hooks/useTournamentClock";
-import type { ProjectorData, TournamentConfig } from "@domain/entities";
+import type { TournamentConfig } from "@domain/entities";
 import Centered from "./sections/Centered";
 import { REFRESH_INTERVAL_MS } from "./constants";
 
@@ -49,7 +46,9 @@ export default function ProjectorPage() {
 
   useClockSyncProjector(tournament?.id);
 
-  const live = useTournamentClock(tournament);
+  const live = useTournamentClock(tournament, {
+    canStartFromSchedule: tournament?.scheduleStartAllowed !== false,
+  });
   const { structure, currentLevel, secondsRemaining, activeLevelIndex } = live;
 
   const sounds = tournament?.sounds ?? DEFAULT_SOUND_SETTINGS;
@@ -64,10 +63,6 @@ export default function ProjectorPage() {
     sounds,
   });
 
-  // Browsers block audio until the page receives a user gesture. If the
-  // projector was opened directly (history/bookmark) with no gesture yet, show
-  // a one-tap prompt; if it was reached by clicking through the entry page,
-  // `hasBeenActive` is already true and this never appears.
   const [needsSoundUnlock, setNeedsSoundUnlock] = useState(
     () => !navigator.userActivation?.hasBeenActive,
   );
@@ -85,7 +80,11 @@ export default function ProjectorPage() {
     return <Centered>No tournament found for this code.</Centered>;
   }
 
-  const projectorData = buildScreen(tournament, live);
+  const projectorData = buildTournamentScreen(
+    tournament,
+    live,
+    resolveBackgroundPath(tournament.projectorBackgroundId),
+  );
 
   if (!projectorData) {
     return <Centered>{tournament.name} — waiting for clock to start</Centered>;
@@ -109,63 +108,5 @@ export default function ProjectorPage() {
         </button>
       )}
     </div>
-  );
-}
-
-/**
- * What the TV is showing: the live screen once the clock is running, or — before
- * it starts — the registration board, drawn from the level play will open on
- * rather than one that is under way.
- *
- * The registration board is derived here from the tournament's own schedule
- * rather than read off its persisted status, so the TV counts down on time even
- * when nobody has the control screen open.
- *
- * Null when neither applies: no clock, and no registration window either.
- */
-function buildScreen(
-  tournament: TournamentConfig,
-  live: TournamentClock,
-): ProjectorData | null {
-  const backgroundPath = resolveBackgroundPath(tournament.projectorBackgroundId);
-  const { structure, clock, currentLevel, secondsRemaining } = live;
-
-  if (clock && currentLevel) {
-    return buildProjectorData(
-      tournament,
-      {
-        structure,
-        currentLevel,
-        nextLevel: live.nextLevel,
-        secondsRemaining,
-        nextBreakSeconds: live.nextBreakSeconds,
-        activeLevelIndex: live.activeLevelIndex,
-        isPaused: clock.isPaused,
-        isFinished: structure
-          ? isTournamentFinished(tournament.status, structure, currentLevel, secondsRemaining)
-          : false,
-      },
-      backgroundPath,
-    );
-  }
-
-  const registration = getRegistrationWindow(tournament, live.now);
-  const openingLevel = tournament.blindLevels[0];
-  if (!registration || !openingLevel) return null;
-
-  return buildProjectorData(
-    tournament,
-    {
-      structure,
-      currentLevel: openingLevel,
-      nextLevel: undefined,
-      secondsRemaining: 0,
-      nextBreakSeconds: null,
-      activeLevelIndex: 0,
-      isPaused: false,
-      isFinished: false,
-      registration,
-    },
-    backgroundPath,
   );
 }
