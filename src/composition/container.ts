@@ -22,10 +22,14 @@ import { SupabaseClockSyncGateway } from '../infrastructure/supabase/SupabaseClo
 const tournamentRepository = new SupabaseTournamentRepository();
 
 export const useTournamentStore = createTournamentStore(tournamentRepository);
-export const useAuthStore = createAuthStore(new SupabaseAuthGateway());
 export const useCurrencyStore = createCurrencyStore(new SupabaseCurrencyRepository());
 export const useBackgroundStore = createBackgroundStore(new SupabaseBackgroundRepository());
 export const usePlanStore = createPlanStore(new SupabasePlanRepository());
+
+export const useAuthStore = createAuthStore(new SupabaseAuthGateway(), async () => {
+  await usePlanStore.getState().load({ force: true });
+  return usePlanStore.getState().plan;
+});
 export const { useClockSyncControl, useClockSyncProjector } = createClockSyncHooks(
   new SupabaseClockSyncGateway(),
 );

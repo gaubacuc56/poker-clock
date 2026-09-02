@@ -4,7 +4,7 @@ import {
   daysUntilPlanEnd,
   effectivePlanCode,
   formatPlanAllowance,
-  formatPlanPeriod,
+  planPeriodRows,
   isWithinPlanLimit,
   planLimit,
   planLimitMessage,
@@ -125,21 +125,26 @@ describe('planUsageFraction', () => {
   });
 });
 
-describe('formatPlanPeriod', () => {
-  it('spells out both bounds when both are set', () => {
-    expect(formatPlanPeriod(makePlan({ planStart: '2026-01-01', planEnd: '2026-12-31' }))).toBe(
-      '01/01/2026 – 31/12/2026',
-    );
+describe('planPeriodRows', () => {
+  it('states each bound on its own labelled row', () => {
+    expect(planPeriodRows(makePlan({ planStart: '2026-01-01', planEnd: '2026-12-31' }))).toEqual([
+      { label: 'Started at', value: '01/01/2026' },
+      { label: 'Expired at', value: '31/12/2026' },
+    ]);
   });
 
-  it('distinguishes the three ways a bound can be absent', () => {
-    expect(formatPlanPeriod(makePlan({ planStart: '2026-01-01', planEnd: null }))).toBe(
-      'From 01/01/2026',
-    );
-    expect(formatPlanPeriod(makePlan({ planStart: null, planEnd: '2026-12-31' }))).toBe(
-      'Until 31/12/2026',
-    );
-    expect(formatPlanPeriod(makePlan({ planStart: null, planEnd: null }))).toBe('No end date');
+  it('states an end that never comes rather than leaving it blank', () => {
+    expect(planPeriodRows(makePlan({ planStart: '2026-01-01', planEnd: null }))).toEqual([
+      { label: 'Started at', value: '01/01/2026' },
+      { label: 'Expired at', value: 'None' },
+    ]);
+  });
+
+  it('drops the start row when no start was recorded', () => {
+    expect(planPeriodRows(makePlan({ planStart: null, planEnd: '2026-12-31' }))).toEqual([
+      { label: 'Expired at', value: '31/12/2026' },
+    ]);
+    expect(planPeriodRows(null)).toEqual([{ label: 'Expired at', value: 'None' }]);
   });
 });
 

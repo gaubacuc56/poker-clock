@@ -1,6 +1,6 @@
 # poker-clock — Supabase schema
 
-Entity-relationship diagram for every migration in `migrations/`, `0001_init.sql` through `0014_projector_start_allowance.sql`. Keep this file in sync whenever a migration changes.
+Entity-relationship diagram for every migration in `migrations/`, `0001_init.sql` through `0015_account_is_active_and_login_hook.sql`. Keep this file in sync whenever a migration changes.
 
 ```mermaid
 erDiagram
@@ -27,6 +27,7 @@ erDiagram
         text plan_code FK "nullable — absent is treated as BASIC"
         date plan_start "nullable"
         date plan_end "nullable"
+        bool is_active "0015 — not null, default true; the suspension switch"
     }
 
     currencies {
@@ -222,6 +223,31 @@ An account may not shadow a standard unit. That is a trigger rather than an inde
 `tournaments.currency` loses its foreign key with the change. A key can only point at one column and `code` is no longer unique on its own — nor should the reference be to a row, since a tournament priced in a custom unit must keep reading as that unit even after the account deletes it. The column is what the tournament is priced in, as text.
 
 The standard set is now VND and USD. `KEYS` is dropped, but only when nothing is priced in it: deleting a unit in use would silently relabel somebody's tournament.
+
+## What a lapsed plan now means
+
+`0013` shipped a lapsed plan as a demotion: `account_plan()` falls back to `BASIC`'s allowances, "so an expired subscription degrades to the free tier instead of locking the organiser out". The app no longer reads it that way. `is_active` false — ended, not started, or no `plan_code` on the profile — closes the app to that account: it is signed out and told to contact the organiser (`src/domain/rules/accountAccess.ts`).
+
+Nothing in the database changed for this, and the demotion is still what the *allowances* do. Two consequences worth knowing:
+
+- **Suspending an account is a row edit.** `profiles.is_active = false` (`0015`), or `plan_end` in the past, or no `plan_code`. All three make `account_plan().is_active` false, and the account gets the same sentence — there is deliberately one message for every reason.
+- **Sign-in is refused by the auth API, not only by the app.** `0015` adds a login hook; see below. Data access itself is still scoped by `owner_id` alone — no policy refuses a query because a plan ended — but an inactive account can no longer obtain or refresh a token, so it holds nothing to ask with.
+
+An account within a week of `plan_end` is warned in the app first (`PLAN_ENDING_NOTICE_DAYS`), and told its work is kept for a month afterwards (`PLAN_DATA_RETENTION_DAYS`). Nothing deletes anything yet: that constant is the promise the screens make, not a job.
+
+## Account standing and sign-in (`0015_account_is_active_and_login_hook.sql`)
+
+`profiles.is_active` is the suspension switch: not null, default true, so an account nobody has suspended is in and every existing row is in. It is separate from the dates because it answers a different question — `plan_end` is when the arrangement runs out, `is_active` is somebody deciding the account may not be used whatever its dates say.
+
+Both fold into one answer. `account_plan()` now reports `is_active` as *the switch and the dates together*, so every enforcement point that already asked it — the limit triggers, the storage policy, the projector's start allowance, `get_my_plan()` and the app's `isAccountLocked` — follows without changing.
+
+`restrict_inactive_accounts(event jsonb)` is a Supabase **custom access token** hook. GoTrue calls it on every token issuance and takes back either the event (allow) or an error (refuse), which is what makes `signInWithPassword` fail. A refresh is an issuance too, so a session already open ends at its next refresh. Nothing is mirrored and nothing is scheduled: the hook reads these tables at the moment it is asked, so a plan that runs out at midnight takes effect at midnight.
+
+Enable it once, in Dashboard → Authentication → Hooks → Customize Access Token, pointing at `public.restrict_inactive_accounts`. Until it is enabled the function is inert and only the app-side check applies.
+
+Its message is the code `account_inactive`, not a sentence: `SupabaseAuthGateway` maps that to the app's own wording, so the sentence has one home. The `exception when others then return event` is load-bearing — this function stands between every account and its token, so a renamed column must let sign-ins through rather than lock out every organiser at once.
+
+**To suspend an account:** `update profiles set is_active = false where id = '<uuid>'`. To reactivate, set it back to true.
 
 ## The projector's start allowance (`0014_projector_start_allowance.sql`)
 

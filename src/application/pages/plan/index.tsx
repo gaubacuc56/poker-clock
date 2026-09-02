@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { Fragment, useEffect } from 'react';
 import {
   useBackgroundStore,
   usePlanStore,
@@ -6,20 +6,17 @@ import {
 } from '@composition/container';
 import {
   countPlanUsage,
-  daysUntilPlanEnd,
   effectivePlanCode,
-  formatPlanPeriod,
   planLimit,
+  planPeriodRows,
   type PlanLimitKind,
 } from '@domain/rules/planLimits';
+import PlanEndingNotice from '@application/components/shared/PlanEndingNotice';
 import Screen from '@application/components/template/Screen';
 import TopBar from '@application/components/template/TopBar';
 import BackLink from '@application/components/template/TopBar/sections/BackLink';
 import { WarningIcon } from '@application/components/ui/icons';
 import AllowanceRow from './sections/AllowanceRow';
-
-/** How close to expiry the screen starts saying so rather than just showing a date. */
-const EXPIRY_WARNING_DAYS = 14;
 
 const ALLOWANCES: { kind: PlanLimitKind; label: string }[] = [
   { kind: 'tournaments', label: 'Tournaments' },
@@ -44,10 +41,6 @@ export default function PlanPage() {
   const backgrounds = useBackgroundStore((state) => state.backgrounds);
   const loadBackgrounds = useBackgroundStore((state) => state.load);
 
-  // Three fetches, and all three are this screen's own subject: an allowance is
-  // shown against what has been used, and "used" is counted from the tournaments
-  // and images themselves rather than from a stored tally that could drift from
-  // what the other screens show.
   useEffect(() => {
     void loadPlan();
     void loadTournaments();
@@ -59,9 +52,7 @@ export default function PlanPage() {
     backgrounds.length,
   );
 
-  const daysLeft = daysUntilPlanEnd(plan, new Date().toISOString());
   const hasLapsed = Boolean(plan && plan.planCode && !plan.isActive);
-  const isExpiringSoon = daysLeft != null && daysLeft >= 0 && daysLeft <= EXPIRY_WARNING_DAYS;
 
   return (
     <Screen>
@@ -77,13 +68,18 @@ export default function PlanPage() {
             <>
               <div className="card gap-1">
                 <span className="kicker">Current plan</span>
-                <span className="engrave display text-[34px] leading-[1.1]">
+                <span className="engrave display text-[34px] leading-[1.1] text-accent">
                   {effectivePlanCode(plan)}
                 </span>
-                <span className="text-[17px] text-muted">{formatPlanPeriod(plan)}</span>
+                <div className="mt-0.5 grid grid-cols-[max-content_auto] gap-x-2 gap-y-0.5">
+                  {planPeriodRows(plan).map(({ label, value }) => (
+                    <Fragment key={label}>
+                      <span className="text-[17px] text-muted">{label}:</span>
+                      <span className="text-[17px] tabular-nums text-fg">{value}</span>
+                    </Fragment>
+                  ))}
+                </div>
 
-                {/* Only ever says something when there is something to say: a
-                    plan with no end date is the normal case and needs no note. */}
                 {hasLapsed && (
                   <p className="mt-1.5 flex items-start gap-1.5 text-[17px] text-coral">
                     <WarningIcon className="mt-1 size-[15px] shrink-0" />
@@ -91,13 +87,9 @@ export default function PlanPage() {
                     {effectivePlanCode(plan)} allowances until it is renewed.
                   </p>
                 )}
-                {!hasLapsed && isExpiringSoon && (
-                  <p className="mt-1.5 flex items-start gap-1.5 text-[17px] text-muted">
-                    <WarningIcon className="mt-1 size-[15px] shrink-0" />
-                    {daysLeft === 0 ? 'Ends today.' : `Ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`}
-                  </p>
-                )}
               </div>
+
+              <PlanEndingNotice />
 
               <div className="card gap-3.5">
                 <span className="kicker">Allowances</span>

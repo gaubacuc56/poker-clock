@@ -79,23 +79,26 @@ export function formatPlanAllowance(limit: number | null, used: number): string 
   return limit == null ? 'Unlimited' : `${used} of ${limit}`;
 }
 
-/** 0…1 of an allowance already used; 0 when it isn't capped, so no bar fills. */
 export function planUsageFraction(limit: number | null, used: number): number {
   if (limit == null || limit <= 0) return 0;
   return Math.min(1, used / limit);
 }
 
-/**
- * The plan's validity as a sentence — the same three cases the nullable dates
- * encode, said out loud rather than left as two blank fields.
- */
-export function formatPlanPeriod(plan: AccountPlan | null): string {
-  if (!plan || (!plan.planStart && !plan.planEnd)) return 'No end date';
-  if (plan.planStart && plan.planEnd) {
-    return `${formatPlanDate(plan.planStart)} – ${formatPlanDate(plan.planEnd)}`;
+export interface PlanPeriodRow {
+  label: string;
+  value: string;
+}
+
+export function planPeriodRows(plan: AccountPlan | null): PlanPeriodRow[] {
+  const rows: PlanPeriodRow[] = [];
+  if (plan?.planStart) {
+    rows.push({ label: 'Started at', value: formatPlanDate(plan.planStart) });
   }
-  if (plan.planEnd) return `Until ${formatPlanDate(plan.planEnd)}`;
-  return `From ${formatPlanDate(plan.planStart!)}`;
+  rows.push({
+    label: 'Expired at',
+    value: plan?.planEnd ? formatPlanDate(plan.planEnd) : 'None',
+  });
+  return rows;
 }
 
 /**

@@ -17,6 +17,7 @@ import Brand from '@application/components/template/Brand';
 import Toast from '@application/components/ui/Toast';
 import ConfirmDialog from '@application/components/ui/ConfirmDialog';
 import TournamentStatusBadge from '@application/components/shared/TournamentStatusBadge';
+import PlanEndingNotice from '@application/components/shared/PlanEndingNotice';
 import {
   ChevronRightIcon,
   ClockIcon,
@@ -90,6 +91,7 @@ export default function DashboardPage() {
 
       <div className="scroll felt px-4 pt-4 pb-[22px]">
         <div className="content flex flex-col gap-3">
+          <PlanEndingNotice />
           {tournamentLimitMessage && (
             <p className="text-[18px] text-coral">{tournamentLimitMessage}</p>
           )}

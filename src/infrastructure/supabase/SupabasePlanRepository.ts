@@ -16,15 +16,12 @@ export class SupabasePlanRepository implements PlanRepository {
     if (error) throw error;
 
     const row = data?.[0];
-    // No row means no profile — an account created before the trigger existed,
-    // say. It is on the fallback tier with no dates, which is exactly what the
-    // database would conclude too.
     if (!row) {
       return {
         planCode: FALLBACK_PLAN_CODE,
         planStart: null,
         planEnd: null,
-        isActive: false,
+        isActive: true,
         maxTour: null,
         maxRunningTour: null,
         maxBackground: null,

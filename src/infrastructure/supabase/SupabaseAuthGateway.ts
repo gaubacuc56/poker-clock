@@ -1,5 +1,6 @@
-import type { Session } from '@supabase/supabase-js';
+import type { AuthError, Session } from '@supabase/supabase-js';
 import type { AuthGateway, AuthSession } from '@domain/ports';
+import { ACCOUNT_LOCKED_MESSAGE } from '@domain/rules/accountAccess';
 import { supabase } from './client';
 
 function sessionToAuthSession(session: Session | null): AuthSession | null {
@@ -22,7 +23,7 @@ export class SupabaseAuthGateway implements AuthGateway {
 
   async signIn(email: string, password: string): Promise<string | null> {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error?.message ?? null;
+    return error ? signInFailure(error) : null;
   }
 
   async signOut(): Promise<void> {
@@ -43,4 +44,8 @@ export class SupabaseAuthGateway implements AuthGateway {
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     return error?.message ?? null;
   }
+}
+
+function signInFailure(error: AuthError): string {
+  return /account_inactive/i.test(error.message) ? ACCOUNT_LOCKED_MESSAGE : error.message;
 }
