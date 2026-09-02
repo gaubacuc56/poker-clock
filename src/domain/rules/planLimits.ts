@@ -75,9 +75,8 @@ export function planLimitMessage(
   return `Maximum ${limit} ${noun} reached.`;
 }
 
-/** "3 of 10", or "3 of ∞" for an uncapped allowance. */
 export function formatPlanAllowance(limit: number | null, used: number): string {
-  return `${used} of ${limit ?? '∞'}`;
+  return limit == null ? 'Unlimited' : `${used} of ${limit}`;
 }
 
 /** 0…1 of an allowance already used; 0 when it isn't capped, so no bar fills. */

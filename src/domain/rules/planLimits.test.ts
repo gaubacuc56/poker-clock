@@ -107,8 +107,9 @@ describe('formatPlanAllowance', () => {
     expect(formatPlanAllowance(10, 3)).toBe('3 of 10');
   });
 
-  it('says so when there is no cap', () => {
-    expect(formatPlanAllowance(null, 3)).toBe('3 of ∞');
+  it('says so in a word when there is no cap, rather than as a ratio', () => {
+    expect(formatPlanAllowance(null, 3)).toBe('Unlimited');
+    expect(formatPlanAllowance(null, 0)).toBe('Unlimited');
   });
 });
 
