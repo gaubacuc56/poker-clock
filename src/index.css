@@ -569,13 +569,15 @@
     background: var(--ticket-h);
   }
   .tkt-main {
-    @apply flex w-full min-w-0 flex-1 items-end gap-3.5 border-0 bg-none px-4 pt-[26px] pb-4 text-left;
+    /* A column, so the name owns a whole line: the join code sits with the
+       entrant count underneath rather than eating the width beside it. */
+    @apply flex w-full min-w-0 flex-1 flex-col items-start border-0 bg-none px-4 pt-[26px] pb-4 text-left;
     font-family: inherit;
     color: inherit;
   }
   /* Only the name navigates — the rest of the ticket body is inert. */
   .tkt-name {
-    @apply block max-w-full cursor-pointer truncate transition-colors duration-150;
+    @apply block max-w-full cursor-pointer break-words line-clamp-2 transition-colors duration-150;
     color: inherit;
   }
   .tkt-name:hover {
@@ -778,6 +780,14 @@
 .react-datepicker__day--outside-month,
 .react-datepicker__day--disabled {
   color: var(--color-faint);
+}
+.react-datepicker__time-list-item--disabled {
+  color: var(--color-faint) !important;
+}
+.react-datepicker__day--disabled:hover,
+.react-datepicker__time-list-item--disabled:hover {
+  background: transparent !important;
+  cursor: default;
 }
 .react-datepicker__day--today {
   font-weight: 700;

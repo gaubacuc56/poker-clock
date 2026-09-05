@@ -1,6 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useTournamentStore, useCurrencyStore, useBackgroundStore } from '@composition/container';
+import {
+  useTournamentStore,
+  useCurrencyStore,
+  useBackgroundStore,
+  usePlanStore,
+  useToast,
+} from '@composition/container';
 import { createDefaultBlindLevels } from '@domain/rules/presets/blindStructures';
 import { renumberLevels } from '@domain/rules/blindStructureEditor';
 import { createDefaultPayoutTiers } from '@domain/rules/presets/payoutStructures';
@@ -16,6 +22,7 @@ import {
   draftToTournament,
   type TournamentDraft,
 } from '@domain/rules/tournamentDraft';
+import { planLimitMessage } from '@domain/rules/planLimits';
 import type { BlindLevel, PayoutTier, PayoutUnit, SoundId, SoundSettings } from '@domain/entities';
 import BlindLevelsTable from '@application/components/shared/BlindLevelsTable';
 import BlindStructureImport from '@application/components/shared/BlindStructureImport';
@@ -30,14 +37,35 @@ import ProjectorStep from './sections/ProjectorStep';
 import SoundsStep from './sections/SoundsStep';
 import ReviewStep from './sections/ReviewStep';
 import WizardFooter from './sections/WizardFooter';
+import Toast from '@application/components/ui/Toast';
 
 export default function SetupWizardPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const isCreating = id == null;
   const existing = useTournamentStore((state) => (id ? state.getById(id) : undefined));
+  const tournamentsLoaded = useTournamentStore((state) => state.isLoaded);
+  const planLoaded = usePlanStore((state) => state.isLoaded);
   const saveTournament = useTournamentStore((state) => state.save);
   const currencies = useCurrencyStore((state) => state.currencies);
   const backgroundOptions = useBackgroundStore((state) => state.backgrounds);
+  const tournaments = useTournamentStore((state) => state.tournaments);
+  const plan = usePlanStore((state) => state.plan);
+  const loadTournaments = useTournamentStore((state) => state.load);
+  const loadCurrencies = useCurrencyStore((state) => state.load);
+  const loadBackgrounds = useBackgroundStore((state) => state.load);
+  const loadPlan = usePlanStore((state) => state.load);
+  const { toastMessage, showToast } = useToast();
+
+  // The wizard is the one screen that genuinely needs all four: the tournament
+  // being edited, the unit picker, the background picker, and the allowance that
+  // decides whether a new tournament may be saved at all.
+  useEffect(() => {
+    void loadTournaments();
+    void loadCurrencies();
+    void loadBackgrounds();
+    void loadPlan();
+  }, [loadTournaments, loadCurrencies, loadBackgrounds, loadPlan]);
 
   const [step, setStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
@@ -52,13 +80,23 @@ export default function SetupWizardPage() {
     setPayoutUnit(existing.payoutUnit ?? 'percentage');
   }, [existing]);
 
-  // Once the DB-driven currency list loads, snap a new tournament's default onto a real code.
+  // Once the DB-driven currency list loads, snap the draft onto a real code.
+  //
+  // This runs for a saved tournament too, not just a new one. A `<select>` whose
+  // value matches none of its options displays the first one instead, so a
+  // tournament priced in a unit that has since been retired showed the Basics
+  // step one unit while every other step — the payouts editor's amount toggle,
+  // the review lines — printed the retired code the draft still held. The picker
+  // is the tournament's unit, so the draft is made to agree with it.
   useEffect(() => {
-    if (existing || currencies.length === 0) return;
+    if (currencies.length === 0) return;
     setDraft((d) =>
       currencies.some((c) => c.code === d.currency) ? d : { ...d, currency: currencies[0].code },
     );
-  }, [existing, currencies]);
+    // `existing` is a dependency because loading a tournament rewrites the whole
+    // draft: without it, a snap that happened before the row arrived would be
+    // undone by the reload and never run again.
+  }, [currencies, existing]);
 
   // Same for backgrounds: the initial placeholder isn't a real id, so snap a new
   // tournament onto the first available background — that way it's actually
@@ -84,13 +122,37 @@ export default function SetupWizardPage() {
     }
   }, [existing, customLevels.length]);
 
-  // Seed the editable payout tiers once: from the tournament's existing structure, or a default split.
+  // Seed the editable payout tiers once per tournament: from its saved structure,
+  // or a default split for a new one.
+  //
+  // Keyed on which tournament has been seeded, not on the list being empty — an
+  // empty list is a legitimate state (no payouts, or the operator just reset
+  // them), and re-seeding on it put the saved places straight back on screen.
+  const seededTiersFor = useRef<string | null>(null);
+
   useEffect(() => {
-    if (customTiers.length > 0) return;
+    const key = existing?.id ?? 'new';
+    if (seededTiersFor.current === key) return;
+    seededTiersFor.current = key;
     setCustomTiers(
       existing ? existing.payoutTiers.map((tier) => ({ ...tier })) : createDefaultPayoutTiers(),
     );
-  }, [existing, customTiers.length]);
+  }, [existing]);
+
+  /**
+   * Empties the saved payout structure, not just the form. Only the payout
+   * columns are written — the rest of the draft may be half-typed, and a reset
+   * of the payouts is not a save of everything else.
+   */
+  async function handleResetPayouts(): Promise<string | null> {
+    if (!existing) return null;
+    try {
+      await saveTournament({ ...existing, payoutTiers: [], payoutUnit: undefined });
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : 'Could not reset the payouts.';
+    }
+  }
 
   function update<K extends keyof TournamentDraft>(key: K, value: TournamentDraft[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
@@ -100,25 +162,54 @@ export default function SetupWizardPage() {
     setDraft((d) => ({ ...d, sounds: { ...d.sounds, [key]: value } }));
   }
 
+  const scheduleLocked =
+    draft.scheduleRepeat === 'once' && !!existing && hasTournamentStarted(existing.status);
+
+  const schedule = {
+    scheduleRepeat: draft.scheduleRepeat,
+    tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
+    scheduleWeekdays: draft.scheduleWeekdays,
+    startTime: draft.startTime,
+  };
+
   const basicsError =
     validateRebuyAddOnPrices({
       allowRebuy: draft.allowRebuy,
       rebuyPrice: Number(draft.rebuyPrice),
       allowAddOn: draft.allowAddOn,
       addOnPrice: Number(draft.addOnPrice),
-    }) ??
-    validateSchedule({
-      scheduleRepeat: draft.scheduleRepeat,
-      registrationStartAt: scheduleLocalToIso(draft.registrationStart),
-      tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
-      scheduleWeekdays: draft.scheduleWeekdays,
-      registrationTime: draft.registrationTime,
-      startTime: draft.startTime,
-    });
+    }) ?? validateSchedule(schedule);
+
+  const scheduleTimingError = scheduleLocked ? null : validateSchedule(schedule, Date.now());
+
+  const planError = isCreating
+    ? planLimitMessage(plan, 'tournaments', tournaments.length)
+    : null;
+
+  useEffect(() => {
+    if (planError && tournamentsLoaded && planLoaded) {
+      navigate('/', { replace: true });
+    }
+  }, [planError, tournamentsLoaded, planLoaded, navigate]);
+
+  const saveError = basicsError ?? scheduleTimingError ?? planError;
 
   async function handleFinish() {
-    if (basicsError) {
+    const startHasGone = !scheduleLocked && validateSchedule(schedule, Date.now());
+    if (basicsError || startHasGone) {
       setStep(STEP_INDEX.basics);
+      return;
+    }
+
+    const limitNow = isCreating
+      ? planLimitMessage(
+          usePlanStore.getState().plan,
+          'tournaments',
+          useTournamentStore.getState().tournaments.length,
+        )
+      : null;
+    if (limitNow) {
+      showToast(limitNow);
       return;
     }
     const tournament = draftToTournament(
@@ -132,14 +223,13 @@ export default function SetupWizardPage() {
     try {
       await saveTournament(tournament);
       navigate(`/tournament/${tournament.id}/control`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not save the tournament.');
     } finally {
       setIsSaving(false);
     }
   }
 
-  // A payout total that doesn't match the guarantee is surfaced as a warning in
-  // the editor, not a block — some tournaments intentionally pay out something
-  // other than the advertised guarantee.
   const canAdvance = step !== STEP_INDEX.basics || !basicsError;
 
   return (
@@ -157,19 +247,22 @@ export default function SetupWizardPage() {
 
       <div className="scroll felt px-4 pt-4 pb-6">
         <div className="content">
+          {planError && (
+            <p className="mb-3 text-[18px] text-coral">{planError}</p>
+          )}
+
+          {step !== STEP_INDEX.basics && scheduleTimingError && (
+            <p className="mb-3 text-[18px] text-coral">{scheduleTimingError}</p>
+          )}
+
           {step === STEP_INDEX.basics && (
             <BasicsStep
               draft={draft}
               currencies={currencies}
-              // Only a dated schedule locks once the clock has run: it describes
-              // an evening that has happened. A weekly one describes the
-              // arrangement, which stays editable mid-run — otherwise setting it
-              // up once, the whole point, would be impossible to correct.
-              scheduleLocked={
-                draft.scheduleRepeat === 'once' &&
-                !!existing &&
-                hasTournamentStarted(existing.status)
-              }
+              otherTournaments={tournaments.filter(
+                (tournament) => tournament.id !== existing?.id,
+              )}
+              scheduleLocked={scheduleLocked}
               onChange={update}
             />
           )}
@@ -187,10 +280,6 @@ export default function SetupWizardPage() {
 
           {step === STEP_INDEX.payouts && (
             <div className="flex flex-col gap-2.5">
-              <p className="text-[16px] text-muted">
-                Customize the payout split — as a percentage of the pool, or as fixed{' '}
-                {draft.currency} amounts that add up to the guaranteed prize pool.
-              </p>
               <PayoutStructureEditor
                 tiers={customTiers}
                 unit={payoutUnit}
@@ -198,6 +287,7 @@ export default function SetupWizardPage() {
                 onChange={setCustomTiers}
                 currency={draft.currency}
                 guaranteedPrizePoolCents={draftGuaranteeCents(draft)}
+                onReset={existing ? handleResetPayouts : undefined}
               />
             </div>
           )}
@@ -236,11 +326,13 @@ export default function SetupWizardPage() {
         isEditing={Boolean(existing)}
         isSaving={isSaving}
         canAdvance={canAdvance}
-        canSave={!basicsError}
+        canSave={!saveError}
         onBack={() => setStep((s) => Math.max(0, s - 1))}
         onNext={() => setStep((s) => Math.min(LAST_STEP, s + 1))}
         onFinish={handleFinish}
       />
+
+      <Toast message={toastMessage} />
     </Screen>
   );
 }

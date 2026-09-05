@@ -39,6 +39,10 @@ export interface TournamentClock {
   now: number;
 }
 
+export interface TournamentClockOptions {
+  canStartFromSchedule?: boolean;
+}
+
 /**
  * Derives the live clock view (current/next level, seconds remaining, next
  * break) for a tournament from the shared clock store. Both the Control and
@@ -48,6 +52,7 @@ export interface TournamentClock {
  */
 export function useTournamentClock(
   tournament: TournamentConfig | null | undefined,
+  { canStartFromSchedule = true }: TournamentClockOptions = {},
 ): TournamentClock {
   const clockState = useClockStore((state) => state.clock);
   const clockTournamentId = useClockStore((state) => state.tournamentId);
@@ -64,7 +69,8 @@ export function useTournamentClock(
   // A scheduled tournament runs off its start time until someone writes a clock
   // for it, so the TV begins on time with no app open anywhere. A written clock
   // is always the truth once it exists.
-  const derivedClock = tournament ? scheduledClockState(tournament, now) : null;
+  const derivedClock =
+    tournament && canStartFromSchedule ? scheduledClockState(tournament, now) : null;
   const clock = storedClock ?? derivedClock;
   const isClockDerived = !storedClock && !!derivedClock;
 

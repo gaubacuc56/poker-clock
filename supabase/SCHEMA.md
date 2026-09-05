@@ -1,22 +1,41 @@
 # poker-clock — Supabase schema
 
-Entity-relationship diagram for `migrations/0001_init.sql` + `0002_currencies.sql` + `0003_public_projector.sql` + `0004_widen_money_columns.sql`. Keep this file in sync whenever a migration changes.
+Entity-relationship diagram for every migration in `migrations/`, `0001_init.sql` through `0015_account_is_active_and_login_hook.sql`. Keep this file in sync whenever a migration changes.
 
 ```mermaid
 erDiagram
     auth_users ||--o{ tournaments  : owns
     auth_users ||--o{ clock_states : owns
+    auth_users ||--|| profiles     : "has account row"
+    auth_users ||--o{ currencies   : "may own custom units"
+    plans       ||--o{ profiles    : "entitles"
     tournaments ||--|| clock_states : "has live clock"
-    currencies  ||--o{ tournaments : "priced in"
 
     auth_users {
         uuid id PK "Supabase-managed, not ours"
     }
 
+    plans {
+        text plan_code PK "BASIC, MODERATOR — uppercase"
+        int max_tour "nullable = unlimited"
+        int max_running_tour "nullable = unlimited"
+        int max_background "nullable = unlimited"
+    }
+
+    profiles {
+        uuid id PK "also FK to auth.users"
+        text plan_code FK "nullable — absent is treated as BASIC"
+        date plan_start "nullable"
+        date plan_end "nullable"
+        bool is_active "0015 — not null, default true; the suspension switch"
+    }
+
     currencies {
-        text code PK "e.g. USD, VND, KEYS"
+        uuid id PK "0013 — code is no longer unique on its own"
+        text code "e.g. USD, VND — uppercase"
         text label
         int sort_order
+        uuid owner_id FK "null = a standard unit everyone sees"
     }
 
     tournaments {
@@ -24,7 +43,7 @@ erDiagram
         uuid owner_id FK
         text name
         text status "setup|registering|running|paused|final_table|complete"
-        text currency FK "references currencies(code)"
+        text currency "0013 — plain text, no longer a FK: `code` is not unique once accounts own units"
         text join_code UK "short public code, e.g. K7QX2 — /p/:join_code"
         bigint buy_in_cents
         bigint fee_cents
@@ -46,12 +65,11 @@ erDiagram
         jsonb payout_tiers "PayoutTier[] — { position, value, note? }"
         jsonb sounds "SoundSettings"
         text schedule_repeat "0012 — once|weekly, decides which half below is read"
-        timestamptz registration_start_at "nullable, 0010 — once: doors open, UTC+7"
         timestamptz tournament_start_at "nullable, 0010 — once: clock starts here"
         smallint_arr schedule_weekdays "0012 — weekly: 0=Sun..6=Sat, UTC+7"
-        text registration_time "nullable, 0012 — weekly: HH:mm UTC+7"
         text start_time "nullable, 0012 — weekly: HH:mm UTC+7"
         timestamptz schedule_dismissed_at "nullable, 0012 — Stop dismissed this night"
+        timestamptz registration_opened_at "nullable, 0013 — legacy, no longer read or written"
         text reg_end_time "nullable, 0011 — HH:mm wall clock, no date"
         timestamptz created_at
         timestamptz updated_at
@@ -73,7 +91,8 @@ erDiagram
 ## Reading the diagram
 
 - **`auth_users`** is Supabase's built-in `auth.users` table (not created by our migration) — both `tournaments` and `clock_states` have an `owner_id` pointing at it, `on delete cascade`. This is the whole multi-tenancy model: nothing is shared between organizers, and RLS on those two is just `owner_id = auth.uid()` for select/insert/update/delete.
-- **`currencies`** is shared reference data, the same for every organizer — not owner-scoped, readable by anyone signed in (`for select using (true)`), and only ever written to via the dashboard/SQL editor, never by the app. This is what lets new currency units get added without a code change. It only affects prize pool/payout display — buy-in and fee are shown as plain numbers regardless of currency.
+- **`currencies`** holds two kinds of row (`0013`). A null `owner_id` is a standard unit — VND and USD, the same two for every account. A non-null one is a unit an account created for itself, invisible to everyone else. It only affects prize pool/payout display — buy-in and fee are shown as plain numbers regardless of unit.
+- **`plans`** and **`profiles`** are the account's entitlements (`0013`): a plan is a named set of allowances, and a profile says which plan an account is on and between which dates. Both are read-only to the app — an account that could write its own profile could grant itself a plan.
 - **`tournaments`** is the only real per-user entity. There's no per-player roster: the app only ever needs *how many* — `entrant_count` (buy-ins), `eliminated_count`, `rebuy_count`, `add_on_count` — not *who*. All four are plain counters the admin increments/decrements live from the app, no join tables involved. Blind levels and payout tiers are likewise `jsonb` columns directly on the row rather than separate tables, since a tournament always owns exactly one of each.
 - **`clock_states`** is a strict 1:1 with `tournaments` (`tournament_id` is both its primary key and its foreign key) — one live countdown row per tournament, added to the `supabase_realtime` publication so Control (writer) and Projector (reader) can run on different devices. The row's lifecycle mirrors Start/Stop, not just Start/Pause: **Start** upserts it, **Pause/Resume/level changes** update it, and **Stop** deletes it outright (the pre-existing `clock_states_delete_own` policy already allows this — no migration needed). Deleting it is what makes Stop mean "start over," not "resume where paused" — and it's also what the Control screen reads back via `fetch()` on mount, so refreshing or reopening the Control tab while a tournament is running/paused resumes the real remote clock instead of losing it locally.
 
@@ -104,17 +123,21 @@ The bounty feature (a flat amount per knockout) was removed entirely, including 
 
 `tournaments.projector_background_id` (added in `0005`) used to only ever reference an id in a bundled config file — that migration's comment says as much. That bundled list is gone; projector backgrounds are now objects in a `background/` folder inside a public Storage bucket named `media` (the bucket is created by hand via the dashboard — same as user accounts — while its RLS policies are migration `0007`). Any signed-in user can upload images from the Settings page. `projector_background_id` holds the object's full in-bucket path (e.g. `background/uuid-name.jpg`), resolved to a URL at render time (`resolveBackgroundPath` in `src/infrastructure/supabase/SupabaseBackgroundRepository.ts`).
 
-The bucket is Public so the unauthenticated `/p/:join_code` projector view can render a background by URL. But Public only governs direct object downloads — **listing** and **uploading** always go through RLS on `storage.objects`, so `0007` adds `authenticated`-role `select`/`insert` policies scoped to the `media` bucket. Without them the Settings page's `list()` returns an empty array (no error), even though the objects exist and their public URLs resolve.
+The bucket is Public so the unauthenticated `/p/:join_code` projector view can render a background by URL. But Public only governs direct object downloads — **listing** and **uploading** always go through RLS on `storage.objects`, so `0007` added `authenticated`-role `select`/`insert` policies scoped to the `media` bucket. Without them the Settings page's `list()` returns an empty array (no error), even though the objects exist and their public URLs resolve.
+
+`0013` narrows those policies from "any signed-in user" to "the account that uploaded it" — see below.
 
 ## Not shown
 
-## Scheduled start (`0010_tournament_schedule.sql`)
+## Scheduled start (`0010_tournament_schedule.sql`, amended by `0013`)
 
-`registration_start_at` and `tournament_start_at` are both nullable — an unscheduled tournament, the norm, has neither and is started by hand exactly as before. They are real `timestamptz` columns rather than keys in the `projector` jsonb bag because the clock starts itself off `tournament_start_at`: the value has to be something Postgres can type-check and compare, not presentation.
+`tournament_start_at` is nullable — an unscheduled tournament, the norm, has none and is started by hand exactly as before. It is a real `timestamptz` column rather than a key in the `projector` jsonb bag because the clock starts itself off it: the value has to be something Postgres can type-check and compare, not presentation.
 
-Instants are stored in UTC; the organiser picks them in UTC+7 (`src/domain/rules/tournamentSchedule.ts` owns that conversion, and ICT's lack of DST is why a fixed offset is the whole rule). Once `registration_start_at` passes, the tournament's status moves to `registering` and the projector counts down to `tournament_start_at`; when that arrives the Control screen starts the clock. With no `tournament_start_at` set, registration stays open and the admin starts it manually.
+`0010` shipped a second instant beside it, `registration_start_at`; `0013` removes it — see "The registration countdown" below.
 
-Both columns are exposed through `get_tournament_by_join_code`, which `0010` re-declares — the TV is the screen that has to show the countdown, and anything missing from that function is invisible to it.
+Instants are stored in UTC; the organiser picks them in UTC+7 (`src/domain/rules/tournamentSchedule.ts` owns that conversion, and ICT's lack of DST is why a fixed offset is the whole rule).
+
+The column is exposed through `get_tournament_by_join_code` — the TV is the screen that has to show the countdown, and anything missing from that function is invisible to it.
 
 ## Registration close announcement (`0011_registration_end.sql`)
 
@@ -130,11 +153,11 @@ Row-level security policies, indexes, and the `set_updated_at` trigger are omitt
 
 Two changes that only make sense together.
 
-**Repeating.** A dated schedule describes one evening, so stopping the run clears it and the organiser enters tomorrow's date tomorrow — a club that runs every Friday was doing that weekly. `schedule_repeat` decides which half of the schedule is read: `once` uses `registration_start_at` + `tournament_start_at`; `weekly` uses `schedule_weekdays` (0 = Sunday … 6 = Saturday, UTC+7) plus `registration_time` and `start_time` (`HH:mm`, UTC+7, same day). Times of day are text, matching `reg_end_time` and the string `<input type="time">` produces.
+**Repeating.** A dated schedule describes one evening, so stopping the run clears it and the organiser enters tomorrow's date tomorrow — a club that runs every Friday was doing that weekly. `schedule_repeat` decides which half of the schedule is read: `once` uses `tournament_start_at`; `weekly` uses `schedule_weekdays` (0 = Sunday … 6 = Saturday, UTC+7) plus `start_time` (`HH:mm`, UTC+7). Times of day are text, matching `reg_end_time` and the string `<input type="time">` produces.
 
-Nothing outside `src/domain/rules/tournamentSchedule.ts` knows there are two shapes: `scheduleOccurrence` resolves either to the two instants of the occurrence in play, and the phase, the registration countdown and the derived clock all read that. A weekly occurrence is current from its registration time for 24 hours — long enough for a night running past midnight, over well before the next week, so the TV announces the coming night rather than sitting on a stale result.
+Nothing outside `src/domain/rules/tournamentSchedule.ts` knows there are two shapes: `scheduleOccurrence` resolves either to the start instant of the occurrence in play, and the phase, the registration countdown and the derived clock all read that. A weekly occurrence is current from its start for 24 hours — long enough for a night running past midnight, over well before the next week, so the TV announces the coming night rather than sitting on a stale result.
 
-`schedule_dismissed_at` is the Dismiss half of an alarm. Stop on a weekly tournament records the instant instead of clearing the days, and occurrences that opened at or before it are skipped — the next day on the list still fires. Turning the arrangement off means clearing `schedule_weekdays` in setup. Stop on a dated schedule still clears the two instants, since that schedule described one evening.
+`schedule_dismissed_at` is the Dismiss half of an alarm. Stop on a weekly tournament records the instant instead of clearing the days, and occurrences that started at or before it are skipped — the next day on the list still fires. Turning the arrangement off means clearing `schedule_weekdays` in setup. Stop on a dated schedule still clears the two instants, since that schedule described one evening.
 
 **Run by the database.** Every scheduled transition used to need a browser. The screens *derive* the registration board and the clock from the schedule, so a TV that is on shows the right thing at the right second — but the `status` a dashboard reads, the `clock_states` row a run needs, and the eventual `finished` were only ever written by an open control screen. A club that sets a Friday alarm and closes the app is entitled to have Friday happen.
 
@@ -142,9 +165,18 @@ Nothing outside `src/domain/rules/tournamentSchedule.ts` knows there are two sha
 
 | At | Write |
 |---|---|
-| Registration time | `status: setup → registering` |
 | Start time | `status → running`, insert `clock_states` with `level_started_at_epoch_ms` = the scheduled instant |
 | Last level runs out | `status → finished` |
+
+(`0012` also had a "registration time → `status: setup → registering`" row. `0013` removes it, and nothing has replaced it: the countdown is derived on every screen from the start time, so there is no registration state to write. `status` stays `setup` until the tournament actually starts.)
+
+The start row is where the plan's running-tournament allowance is enforced: `tournaments_enforce_plan_limits` fires on exactly this `update`, so an account already at its limit has the start refused. Each tournament starts in its own sub-transaction, so one refusal doesn't stop the sweep for everybody else — and because the `clock_states` insert is inside that block, a refused start leaves no clock row behind.
+
+The screens have to agree with that refusal, or the allowance is enforced in the database and bypassed on the TV. Two things make them:
+
+- The control screen writes the **status first and the clock only if that write is accepted**, and refuses the start itself when it can already see the account is at its limit (`planLimits` + `countRunningTournaments`).
+- A screen derives a clock from the schedule only within `SCHEDULED_START_GRACE_MS` (two minutes, `src/domain/rules/tournamentLifecycle.ts`) of the start. Inside it, an unwritten start is the once-a-minute job not having run yet, and the room begins on time. Past it, a `status` that still says the tournament never started means it was refused, and no screen goes on showing a clock for it.
+- The public projector cannot see the account's plan, so `get_tournament_by_join_code` tells it — see "The projector's start allowance" below. That is the answer that stops the TV *immediately* rather than two minutes in.
 
 It is idempotent: every branch is guarded on the status it changes and the clock row is an `on conflict do nothing` insert, so repeated runs cost nothing. The start instant is used rather than `now()`, so a tournament the job reaches late is late-into-itself, not starting fresh — the same rule the client uses when adopting a derived clock. Finishing applies to manually started tournaments too, since the status should be true whoever started it, and it changes only the status: the clock row is left alone so the result keeps showing until the admin stops the tournament. The function is `security definer` and writes across owners, so it is revoked from `public` — only the scheduler may call it.
 
@@ -153,3 +185,94 @@ Stop stays authoritative over the job. It deletes the clock row and either clear
 A minute is the job's resolution because a minute is the resolution a schedule is set at. It is only the bookkeeping cadence — the room still sees the countdown update every 250ms.
 
 **Known duplication.** `tournament_occurrence()` restates `scheduleOccurrence`, and `tournament_clock_finished()` restates `isClockFinished` from `src/domain/rules/blindProgression.ts`. Both are deliberate — the screens cannot ask the database every 250ms, and a status that only updates when somebody is looking is not a status — and both can drift, so change each pair together. The schedule half is meant to be collapsed by having the API return the resolved instants, at which point the client stops computing them at all.
+
+## Plans and profiles (`0013`)
+
+An organiser is now an account with entitlements, not just a row owner.
+
+`plans` is reference data — a named set of allowances (`BASIC`, `MODERATOR`), readable by everyone and writable only from the dashboard. A null allowance means *no limit*, which is a different thing from zero; that distinction is why all three are nullable rather than defaulted to some very large number.
+
+`profiles` is one row per `auth.users` row, created by a trigger on insert and backfilled for accounts that already existed. It carries the three new user columns — `plan_code`, `plan_start`, `plan_end`, all nullable, each absence meaning something different: no plan named, always been in force, does not expire. It is **select-only** to its owner; an account that could write its own profile could grant itself a plan.
+
+`account_plan(uuid)` is the single answer to "what is this account allowed to do". A plan that has not started or has already ended does not apply, and the account falls back to `BASIC` rather than to nothing — an expired subscription degrades to the free tier instead of locking the organiser out of tournaments they already have. Everything else asks it:
+
+| Allowance | Enforced by | Counted as |
+|---|---|---|
+| `max_tour` | `tournaments_enforce_plan_limits` trigger, on insert | rows owned |
+| `max_running_tour` | same trigger, on the transition *into* `running`/`paused` | rows in play |
+| `max_background` | the `media` insert policy, via `my_max_background()` / `my_background_count()` | objects owned |
+
+The running limit is only checked on the way *into* a running state. Re-saving a tournament that is already running is not a new run, and a stricter check would fail on the pause/resume an operator does mid-tournament. Both counts are taken against `new.owner_id` rather than `auth.uid()`, because the same write arrives from a browser and from `advance_tournament_schedules`, which runs as the scheduler with no authenticated user at all.
+
+`src/domain/rules/planLimits.ts` restates the same refusals in the client. That is the polite half only — it refuses before the round trip with a sentence naming the plan and the number, and treats an unknown plan as "allow it and let the database decide".
+
+## Backgrounds belong to the account that uploaded them (`0013`)
+
+`0007` let any signed-in user list, upload to and delete from the whole `media` bucket, which made every club's backgrounds a shared pool. `0013` scopes all three to `storage.objects.owner`.
+
+No new table: storage already records who uploaded an object, so ownership is the column that is already there rather than a mirror of the bucket that could drift from it. Both `owner` and its replacement `owner_id` are checked, so the policies work whichever one this project's storage version populates.
+
+Objects uploaded before the migration are left exactly where they are — still owned by whoever uploaded them, simply no longer visible to anybody else. Nothing is renamed, because renaming a `storage.objects` row without moving the object behind it breaks the object. What *is* new is that uploads are named `background/<owner-id>__<filename>`, so two accounts uploading `felt.jpg` no longer collide in a bucket they can't see each other in; `SupabaseBackgroundRepository` strips that prefix for display.
+
+## Units are per-account (`0013`)
+
+`currencies` had a single primary key on `code`, which is exactly what stops two clubs each having their own `CHIPS`. It gains a surrogate `id` and an `owner_id`: null is one of the shared defaults every account sees, non-null is that account's own unit. A unique index on `(code, coalesce(owner_id, <nil uuid>))` covers both halves at once — null owners would otherwise never collide with each other, and the shared defaults could be duplicated.
+
+An account may not shadow a standard unit. That is a trigger rather than an index, because "collides with the null-owner row" isn't something a unique index can express.
+
+`tournaments.currency` loses its foreign key with the change. A key can only point at one column and `code` is no longer unique on its own — nor should the reference be to a row, since a tournament priced in a custom unit must keep reading as that unit even after the account deletes it. The column is what the tournament is priced in, as text.
+
+The standard set is now VND and USD. `KEYS` is dropped, but only when nothing is priced in it: deleting a unit in use would silently relabel somebody's tournament.
+
+## What a lapsed plan now means
+
+`0013` shipped a lapsed plan as a demotion: `account_plan()` falls back to `BASIC`'s allowances, "so an expired subscription degrades to the free tier instead of locking the organiser out". The app no longer reads it that way. `is_active` false — ended, not started, or no `plan_code` on the profile — closes the app to that account: it is signed out and told to contact the organiser (`src/domain/rules/accountAccess.ts`).
+
+Nothing in the database changed for this, and the demotion is still what the *allowances* do. Two consequences worth knowing:
+
+- **Suspending an account is a row edit.** `profiles.is_active = false` (`0015`), or `plan_end` in the past, or no `plan_code`. All three make `account_plan().is_active` false, and the account gets the same sentence — there is deliberately one message for every reason.
+- **Sign-in is refused by the auth API, not only by the app.** `0015` adds a login hook; see below. Data access itself is still scoped by `owner_id` alone — no policy refuses a query because a plan ended — but an inactive account can no longer obtain or refresh a token, so it holds nothing to ask with.
+
+An account within a week of `plan_end` is warned in the app first (`PLAN_ENDING_NOTICE_DAYS`), and told its work is kept for a month afterwards (`PLAN_DATA_RETENTION_DAYS`). Nothing deletes anything yet: that constant is the promise the screens make, not a job.
+
+## Account standing and sign-in (`0015_account_is_active_and_login_hook.sql`)
+
+`profiles.is_active` is the suspension switch: not null, default true, so an account nobody has suspended is in and every existing row is in. It is separate from the dates because it answers a different question — `plan_end` is when the arrangement runs out, `is_active` is somebody deciding the account may not be used whatever its dates say.
+
+Both fold into one answer. `account_plan()` now reports `is_active` as *the switch and the dates together*, so every enforcement point that already asked it — the limit triggers, the storage policy, the projector's start allowance, `get_my_plan()` and the app's `isAccountLocked` — follows without changing.
+
+`restrict_inactive_accounts(event jsonb)` is a Supabase **custom access token** hook. GoTrue calls it on every token issuance and takes back either the event (allow) or an error (refuse), which is what makes `signInWithPassword` fail. A refresh is an issuance too, so a session already open ends at its next refresh. Nothing is mirrored and nothing is scheduled: the hook reads these tables at the moment it is asked, so a plan that runs out at midnight takes effect at midnight.
+
+Enable it once, in Dashboard → Authentication → Hooks → Customize Access Token, pointing at `public.restrict_inactive_accounts`. Until it is enabled the function is inert and only the app-side check applies.
+
+Its message is the code `account_inactive`, not a sentence: `SupabaseAuthGateway` maps that to the app's own wording, so the sentence has one home. The `exception when others then return event` is load-bearing — this function stands between every account and its token, so a renamed column must let sign-ins through rather than lock out every organiser at once.
+
+**To suspend an account:** `update profiles set is_active = false where id = '<uuid>'`. To reactivate, set it back to true.
+
+## The projector's start allowance (`0014_projector_start_allowance.sql`)
+
+`get_tournament_by_join_code` gains one computed column, `schedule_start_allowed`: may this tournament start itself off its schedule right now?
+
+It exists because the two halves of the lifecycle answer to different things. The allowance is enforced on a row — the `status → running` update — while the screens do not wait for that row: they derive the clock from the schedule so a TV with no app open anywhere starts on time. The control screen can tell when that write would be refused, because it holds the account's plan and its other tournaments. The projector holds neither, and went on counting down a tournament the database had refused to start; an allowance enforced in the row and bypassed on the television is not enforced.
+
+The column is the same comparison `tournaments_enforce_plan_limits` makes — the owner's `max_running_tour` against the owner's *other* tournaments in `running`/`paused` — so the trigger and the TV cannot disagree about what is allowed, only about when they were asked (the projector re-reads this every 8 seconds).
+
+It is deliberately a bare boolean: the caller already has the join code, and this names neither the plan nor the number. `true` when the plan does not cap running tournaments, and `true` when there is no plan row to read, matching how `planLimits` treats an unknown plan.
+
+The app treats an absent value as `true`, so a deployment running ahead of this migration simply falls back to the two-minute grace above.
+
+## The registration countdown (`0013`, amended since)
+
+A scheduled registration start was a second instant to keep correct, and it opened the board whether or not anybody was in the room. `registration_start_at` and `registration_time` are both dropped. There is one configurable instant — when the tournament starts — and the countdown is worked out from it:
+
+| When | What the screens show |
+|---|---|
+| More than 6 hours before the start | The next session's date and time |
+| Within 6 hours | The countdown, full at 6 hours and empty as the start arrives |
+| From the start | The clock |
+
+Nothing is stored and nothing is pressed. `0013` shipped an **Open registration** button and stamped `registration_opened_at`; that column is now legacy — no screen reads it and every save writes null. A board that only goes up if somebody is in the room to raise it is not a schedule, and the stamp was a second thing to keep in step with the start time it was already derived from.
+
+Because the answer is a comparison rather than a state, a weekly tournament's next night puts its own board up with nothing cleared in between, and every screen agrees on the countdown without a round trip: the control screen, the projector, and the projector image the control screen captures — the board is capturable exactly like the clock.
+
+The lead time lives in `REGISTRATION_LEAD_HOURS` in `src/domain/rules/tournamentSchedule.ts`. The database has no opinion on it — it never writes a registration state at all — so unlike the schedule itself there is no second copy to drift.

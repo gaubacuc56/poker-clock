@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  countRunningTournaments,
   DEFAULT_ENTRANT_COUNT,
   hasTournamentStarted,
   isTournamentInPlay,
+  SCHEDULED_START_GRACE_MS,
   scheduledClockState,
   startTournament,
   stopTournament,
@@ -65,12 +67,37 @@ describe('scheduledClockState', () => {
 
   it('is null when the tournament is started by hand', () => {
     expect(scheduledClockState({}, at('2026-08-10T14:00:00Z'))).toBeNull();
+  });
+
+  it('gives the scheduler its grace, then reads silence as a refusal', () => {
+    // The status still says the tournament never started. Inside the grace that
+    // is the once-a-minute job not having run yet, so the clock is derived and
+    // the room starts on time.
+    const pending = { tournamentStartAt, status: 'setup' as const };
+    expect(
+      scheduledClockState(pending, at(tournamentStartAt) + SCHEDULED_START_GRACE_MS),
+    ).not.toBeNull();
+
+    // Past it, the job has had its chance and declined — the plan's running
+    // allowance is the reason there is — so nothing is derived and no screen
+    // shows a tournament that is not running.
+    expect(
+      scheduledClockState(pending, at(tournamentStartAt) + SCHEDULED_START_GRACE_MS + 1),
+    ).toBeNull();
+
+    // A tournament that did start keeps its clock however long ago that was.
     expect(
       scheduledClockState(
-        { registrationStartAt: '2026-08-10T12:00:00.000Z' },
-        at('2026-08-10T14:00:00Z'),
+        { tournamentStartAt, status: 'running' },
+        at('2026-08-10T20:00:00Z'),
       ),
-    ).toBeNull();
+    ).not.toBeNull();
+  });
+
+  it('derives without a status at all — the projector before its row arrives', () => {
+    expect(
+      scheduledClockState({ tournamentStartAt }, at('2026-08-10T20:00:00Z')),
+    ).not.toBeNull();
   });
 
   it('is null once stopping has cleared the schedule', () => {
@@ -86,10 +113,11 @@ describe('scheduledClockState', () => {
     const weekly = makeTournament({
       scheduleRepeat: 'weekly',
       scheduleWeekdays: [1],
-      registrationTime: '19:00',
       startTime: '20:00',
     });
-    const clock = scheduledClockState(weekly, at('2026-08-10T14:00:00Z'));
+    // Half a minute in — inside the scheduler's grace, so this is the screens
+    // covering the gap before the job writes the row.
+    const clock = scheduledClockState(weekly, at('2026-08-10T13:00:30Z'));
     expect(clock?.levelStartedAtEpochMs).toBe(at('2026-08-10T13:00:00Z'));
   });
 
@@ -97,7 +125,6 @@ describe('scheduledClockState', () => {
     const weekly = makeTournament({
       scheduleRepeat: 'weekly',
       scheduleWeekdays: [1],
-      registrationTime: '19:00',
       startTime: '20:00',
       status: 'running',
     });
@@ -107,9 +134,9 @@ describe('scheduledClockState', () => {
     // Tonight is over…
     expect(scheduledClockState(dismissed, at('2026-08-10T15:00:00Z'))).toBeNull();
     // …and the same weekday next week starts on its own.
-    expect(scheduledClockState(dismissed, at('2026-08-17T14:00:00Z'))?.levelStartedAtEpochMs).toBe(
-      at('2026-08-17T13:00:00Z'),
-    );
+    expect(
+      scheduledClockState(dismissed, at('2026-08-17T13:00:30Z'))?.levelStartedAtEpochMs,
+    ).toBe(at('2026-08-17T13:00:00Z'));
   });
 });
 
@@ -158,7 +185,26 @@ describe('stopTournament', () => {
       eliminatedCount: 0,
       rebuyCount: 0,
       addOnCount: 7,
+      payoutTiers: [],
+      payoutUnit: undefined,
+      registrationOpenedAt: undefined,
+      tournamentStartAt: undefined,
     });
+  });
+
+  it('clears the payouts, the same as Clear all on the payouts step', () => {
+    const tournament = makeTournament({
+      status: 'running',
+      payoutTiers: [
+        { position: 1, value: 60 },
+        { position: 2, value: 40, note: '1 ticket happy hour' },
+      ],
+      payoutUnit: 'amount',
+    });
+
+    const stopped = stopTournament(tournament, STOPPED_AT);
+    expect(stopped.payoutTiers).toEqual([]);
+    expect(stopped.payoutUnit).toBeUndefined();
   });
 
   it('leaves add-on count untouched', () => {
@@ -166,15 +212,31 @@ describe('stopTournament', () => {
     expect(stopTournament(tournament, STOPPED_AT).addOnCount).toBe(9);
   });
 
-  it('drops the schedule, so a live registration window cannot reopen', () => {
+  it('drops the schedule, so the tournament cannot start itself again', () => {
     const tournament = makeTournament({
       status: 'running',
-      registrationStartAt: '2026-08-10T12:00:00.000Z',
       tournamentStartAt: '2026-08-10T13:00:00.000Z',
     });
-    const stopped = stopTournament(tournament, STOPPED_AT);
 
-    expect(stopped.registrationStartAt).toBeUndefined();
-    expect(stopped.tournamentStartAt).toBeUndefined();
+    expect(stopTournament(tournament, STOPPED_AT).tournamentStartAt).toBeUndefined();
+  });
+
+});
+
+describe('countRunningTournaments', () => {
+  const list = [
+    { id: 'a', status: 'running' as const },
+    { id: 'b', status: 'paused' as const },
+    { id: 'c', status: 'setup' as const },
+    { id: 'd', status: 'finished' as const },
+  ];
+
+  it('counts only the runs in play', () => {
+    expect(countRunningTournaments(list)).toBe(2);
+  });
+
+  it('leaves the one about to start out of its own count', () => {
+    expect(countRunningTournaments(list, 'a')).toBe(1);
+    expect(countRunningTournaments(list, 'c')).toBe(2);
   });
 });

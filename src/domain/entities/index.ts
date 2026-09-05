@@ -4,5 +4,6 @@ export * from './payout';
 export * from './sound';
 export * from './clock';
 export * from './currency';
+export * from './plan';
 export * from './background';
 export * from './projector';

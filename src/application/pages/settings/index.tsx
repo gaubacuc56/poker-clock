@@ -5,15 +5,22 @@ import Screen from '@application/components/template/Screen';
 import TopBar from '@application/components/template/TopBar';
 import BackLink from '@application/components/template/TopBar/sections/BackLink';
 import ConfirmDialog from '@application/components/ui/ConfirmDialog';
-import { ChevronRightIcon, LogoutIcon, MoonIcon, SunIcon } from '@application/components/ui/icons';
+import {
+  CardIcon,
+  ChevronRightIcon,
+  CoinIcon,
+  LogoutIcon,
+  MoonIcon,
+  ProjectorIcon,
+  SunIcon,
+  UserIcon,
+} from '@application/components/ui/icons';
 
 const MENU = [
-  { to: '/settings/profile', title: 'Profile', subtitle: 'Email and password' },
-  {
-    to: '/settings/backgrounds',
-    title: 'Projector backgrounds',
-    subtitle: 'Upload and manage images',
-  },
+  { to: '/settings/profile', title: 'Account settings', Icon: UserIcon },
+  { to: '/settings/plan', title: 'Plan', Icon: CardIcon },
+  { to: '/settings/units', title: 'Units', Icon: CoinIcon },
+  { to: '/settings/backgrounds', title: 'Projector backgrounds', Icon: ProjectorIcon },
 ];
 
 export default function SettingsPage() {
@@ -59,12 +66,10 @@ export default function SettingsPage() {
             <Link
               key={item.to}
               to={item.to}
-              className="btn w-full justify-start bg-surface px-5.5 py-3 text-left shadow-lift-sm"
+              className="btn w-full justify-start bg-surface px-4 py-3 text-left shadow-lift-sm"
             >
-              <span className="flex-1">
-                <span className="block text-[20px]">{item.title}</span>
-                <span className="block text-[14px] text-faint">{item.subtitle}</span>
-              </span>
+              <item.Icon className="size-[19px] shrink-0 text-muted" />
+              <span className="flex-1 text-lg ml-1">{item.title}</span>
               <ChevronRightIcon className="size-[15px] text-faint" />
             </Link>
           ))}

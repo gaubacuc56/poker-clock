@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { useBackgroundStore } from '@composition/container';
+import { usePlanStore, useBackgroundStore, useToast } from '@composition/container';
 import type { Background } from '@domain/entities';
+import { formatPlanAllowance, planLimit, planLimitMessage } from '@domain/rules/planLimits';
 import Screen from '@application/components/template/Screen';
 import TopBar from '@application/components/template/TopBar';
 import BackLink from '@application/components/template/TopBar/sections/BackLink';
 import ConfirmDialog from '@application/components/ui/ConfirmDialog';
+import Toast from '@application/components/ui/Toast';
 import Spinner from '@application/components/ui/Spinner';
 import { TrashIcon, UploadIcon } from '@application/components/ui/icons';
 
@@ -15,20 +17,39 @@ export default function BackgroundsPage() {
   const upload = useBackgroundStore((state) => state.upload);
   const remove = useBackgroundStore((state) => state.remove);
   const load = useBackgroundStore((state) => state.load);
+  const plan = usePlanStore((state) => state.plan);
+  const loadPlan = usePlanStore((state) => state.load);
 
+  const { toastMessage, showToast } = useToast();
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Background | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // The images, and the allowance they are counted against. Both stores fetch
+  // once, so asking on every mount is free after the first.
   useEffect(() => {
-    if (!isLoaded) load();
-  }, [isLoaded, load]);
+    void load();
+    void loadPlan();
+  }, [load, loadPlan]);
+
+  const limit = planLimit(plan, 'backgrounds');
+  const limitReached = planLimitMessage(plan, 'backgrounds', backgrounds.length);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+
+    const limitNow = planLimitMessage(
+      usePlanStore.getState().plan,
+      'backgrounds',
+      useBackgroundStore.getState().backgrounds.length,
+    );
+    if (limitNow) {
+      showToast(limitNow);
+      return;
+    }
 
     setError(null);
     const message = await upload(file);
@@ -49,12 +70,12 @@ export default function BackgroundsPage() {
     <Screen>
       <TopBar>
         <BackLink to="/settings" label="Back to settings" />
-        <h1 className="text-[22px]">Projector backgrounds</h1>
         <button
           type="button"
           className="btn btn-primary ml-auto"
           onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
+          disabled={isUploading || Boolean(limitReached)}
+          title={limitReached ?? undefined}
         >
           {isUploading ? <Spinner /> : <UploadIcon className="size-[17px]" />}
           {isUploading ? 'Uploading…' : 'Upload'}
@@ -73,9 +94,21 @@ export default function BackgroundsPage() {
         <div className="content">
           {error && <p className="mb-3 text-[18px] text-coral">{error}</p>}
 
+          {limit != null && (
+            <p className="mb-3 text-[16px] text-faint">
+              {formatPlanAllowance(limit, backgrounds.length)} backgrounds used on your plan.
+            </p>
+          )}
+
+         
+          {limitReached && !error && (
+            <p className="mb-3 text-[18px] text-coral">{limitReached}</p>
+          )}
+
           {isLoaded && backgrounds.length === 0 ? (
             <p className="px-2 py-10 text-center text-[16px] text-faint">
-              No backgrounds yet. Upload one to get started.
+              No backgrounds yet. Upload one to get started — they are private to your
+              account.
             </p>
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-2.5">
@@ -107,6 +140,8 @@ export default function BackgroundsPage() {
           )}
         </div>
       </div>
+
+      <Toast message={toastMessage} />
 
       <ConfirmDialog
         open={pendingDelete !== null}

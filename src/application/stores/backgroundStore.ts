@@ -1,12 +1,14 @@
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import type { BackgroundRepository } from '@domain/ports';
 import type { Background } from '@domain/entities';
+import { loadOnce, type LoadOptions } from './loadOnce';
 
 interface BackgroundStoreState {
   backgrounds: Background[];
   isLoaded: boolean;
   isUploading: boolean;
-  load: () => Promise<void>;
+  load: (options?: LoadOptions) => Promise<void>;
+  reset: () => void;
   upload: (file: File) => Promise<string | null>;
   remove: (id: string) => Promise<string | null>;
 }
@@ -14,14 +16,18 @@ interface BackgroundStoreState {
 export function createBackgroundStore(
   repo: BackgroundRepository,
 ): UseBoundStore<StoreApi<BackgroundStoreState>> {
-  return create<BackgroundStoreState>((set) => ({
+  return create<BackgroundStoreState>((set, get) => ({
     backgrounds: [],
     isLoaded: false,
     isUploading: false,
-    load: async () => {
-      const backgrounds = await repo.list();
-      set({ backgrounds, isLoaded: true });
-    },
+    load: loadOnce(
+      () => get().isLoaded,
+      async () => {
+        const backgrounds = await repo.list();
+        set({ backgrounds, isLoaded: true });
+      },
+    ),
+    reset: () => set({ backgrounds: [], isLoaded: false }),
     upload: async (file) => {
       set({ isUploading: true });
       try {

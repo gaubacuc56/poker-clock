@@ -3,7 +3,6 @@ import { LAST_STEP } from '../constants';
 
 interface WizardFooterProps {
   step: number;
-  /** Editing an existing tournament: every step saves, rather than advancing to a finish. */
   isEditing: boolean;
   isSaving: boolean;
   canAdvance: boolean;
@@ -13,7 +12,6 @@ interface WizardFooterProps {
   onFinish: () => void;
 }
 
-/** The bottom bar: back on the left, and whichever forward action applies. */
 export default function WizardFooter({
   step,
   isEditing,
@@ -41,7 +39,7 @@ export default function WizardFooter({
           <button
             type="button"
             className="btn btn-primary ml-auto min-w-33"
-            disabled={isSaving || (isEditing && !canSave)}
+            disabled={isSaving || !canSave}
             onClick={onFinish}
           >
             {isSaving && <Spinner />}

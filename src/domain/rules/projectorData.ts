@@ -1,6 +1,7 @@
 import type {
   BlindLevel,
   BlindStructure,
+  ClockState,
   PayoutResult,
   PayoutStructure,
   ProjectorData,
@@ -11,7 +12,8 @@ import { getEntryPriceLines } from './entryPricing';
 import { calculatePayouts, hasPayouts } from './payouts';
 import { calculatePrizePoolForTournament } from './prizePool';
 import { computeTournamentStats } from './tournamentStats';
-import type { RegistrationWindow } from './tournamentSchedule';
+import { getRegistrationWindow, type RegistrationWindow } from './tournamentSchedule';
+import { isTournamentFinished } from './tournamentLifecycle';
 
 /**
  * The payout ladder for a tournament at its current prize pool, or an empty
@@ -87,4 +89,62 @@ export function buildProjectorData(
     levelCount: clock.structure?.levels.length ?? 0,
     layout: tournament.projectorLayout,
   };
+}
+
+export interface ProjectorLiveClock {
+  structure: BlindStructure | undefined;
+  clock: ClockState | null;
+  currentLevel: BlindLevel | undefined;
+  nextLevel: BlindLevel | undefined;
+  secondsRemaining: number;
+  nextBreakSeconds: number | null;
+  activeLevelIndex: number;
+  now: number;
+}
+
+export function buildTournamentScreen(
+  tournament: TournamentConfig,
+  live: ProjectorLiveClock,
+  backgroundPath: string | undefined,
+): ProjectorData | null {
+  const { structure, clock, currentLevel, secondsRemaining } = live;
+
+  if (clock && currentLevel) {
+    return buildProjectorData(
+      tournament,
+      {
+        structure,
+        currentLevel,
+        nextLevel: live.nextLevel,
+        secondsRemaining,
+        nextBreakSeconds: live.nextBreakSeconds,
+        activeLevelIndex: live.activeLevelIndex,
+        isPaused: clock.isPaused,
+        isFinished: structure
+          ? isTournamentFinished(tournament.status, structure, currentLevel, secondsRemaining)
+          : false,
+      },
+      backgroundPath,
+    );
+  }
+
+  const registration = getRegistrationWindow(tournament, live.now);
+  const openingLevel = tournament.blindLevels[0];
+  if (!registration || !openingLevel) return null;
+
+  return buildProjectorData(
+    tournament,
+    {
+      structure,
+      currentLevel: openingLevel,
+      nextLevel: undefined,
+      secondsRemaining: 0,
+      nextBreakSeconds: null,
+      activeLevelIndex: 0,
+      isPaused: false,
+      isFinished: false,
+      registration,
+    },
+    backgroundPath,
+  );
 }

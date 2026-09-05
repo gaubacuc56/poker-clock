@@ -48,12 +48,10 @@ export interface TournamentDraft {
   guaranteedPrizePool: string;
   /** Which shape the schedule fields below are read as. */
   scheduleRepeat: ScheduleRepeat;
-  /** `once`: `datetime-local` values, UTC+7 wall time as typed. */
-  registrationStart: string;
+  /** `once`: a `datetime-local` value, UTC+7 wall time as typed. */
   tournamentStart: string;
-  /** `weekly`: days (0 = Sunday) and two `HH:mm` times of day, UTC+7. */
+  /** `weekly`: days (0 = Sunday) and one `HH:mm` time of day, UTC+7. */
   scheduleWeekdays: number[];
-  registrationTime: string;
   startTime: string;
   /** The `HH:mm` the room expects `lateRegLevel` at — the other half of the
    *  projector's "Reg End" line. Blank when it isn't announced. */
@@ -83,10 +81,8 @@ export function createEmptyDraft(): TournamentDraft {
     lateRegLevel: '4',
     guaranteedPrizePool: '',
     scheduleRepeat: 'once',
-    registrationStart: '',
     tournamentStart: '',
     scheduleWeekdays: [],
-    registrationTime: '',
     startTime: '',
     regEndTime: '',
     sounds: { ...DEFAULT_SOUND_SETTINGS },
@@ -116,10 +112,8 @@ export function draftFromTournament(tournament: TournamentConfig): TournamentDra
       ? String(fromCents(tournament.guaranteedPrizePool))
       : '',
     scheduleRepeat: tournament.scheduleRepeat ?? 'once',
-    registrationStart: scheduleIsoToLocal(tournament.registrationStartAt),
     tournamentStart: scheduleIsoToLocal(tournament.tournamentStartAt),
     scheduleWeekdays: [...(tournament.scheduleWeekdays ?? [])],
-    registrationTime: tournament.registrationTime ?? '',
     startTime: tournament.startTime ?? '',
     regEndTime: tournament.regEndTime ?? '',
     sounds: { ...DEFAULT_SOUND_SETTINGS, ...tournament.sounds },
@@ -185,18 +179,11 @@ export function draftToTournament(
     sounds: draft.sounds,
     projectorBackgroundId: draft.projectorBackgroundId || undefined,
     projectorLayout: draft.projectorLayout,
-    // Only the half that matches the chosen shape is written, so switching
-    // between them can't leave a stale dated occurrence behind a weekly one.
     scheduleRepeat: draft.scheduleRepeat,
-    registrationStartAt:
-      draft.scheduleRepeat === 'once' ? scheduleLocalToIso(draft.registrationStart) : undefined,
     tournamentStartAt:
       draft.scheduleRepeat === 'once' ? scheduleLocalToIso(draft.tournamentStart) : undefined,
     scheduleWeekdays: draft.scheduleRepeat === 'weekly' ? [...draft.scheduleWeekdays] : [],
-    registrationTime:
-      draft.scheduleRepeat === 'weekly' ? draft.registrationTime || undefined : undefined,
     startTime: draft.scheduleRepeat === 'weekly' ? draft.startTime || undefined : undefined,
-    // Carried, never edited: it records what the admin already dismissed.
     scheduleDismissedAt: existing?.scheduleDismissedAt,
     regEndTime: draft.regEndTime || undefined,
     createdAt: existing?.createdAt ?? now(),
@@ -263,16 +250,13 @@ function scheduleRows(draft: TournamentDraft): DraftSummaryRow[] {
         .sort((a, b) => a - b)
         .map((day) => WEEKDAY_LABELS[day])
         .join(', ');
-      const opens = draft.registrationTime ? `${draft.registrationTime} → ` : '';
       rows.push({ label: 'Every week', value: days });
-      rows.push({ label: 'Time', value: `${opens}${draft.startTime}` });
+      rows.push({ label: 'Start time', value: draft.startTime });
     }
     return rows;
   }
 
-  const registration = formatScheduleTime(scheduleLocalToIso(draft.registrationStart));
   const start = formatScheduleTime(scheduleLocalToIso(draft.tournamentStart));
-  if (registration) rows.push({ label: 'Registration opens', value: registration });
   if (start) rows.push({ label: 'Tournament starts', value: start });
 
   const regEnd = formatRegistrationEnd(Number(draft.lateRegLevel) || undefined, draft.regEndTime);

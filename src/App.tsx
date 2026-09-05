@@ -1,11 +1,7 @@
-import { useEffect } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import {
-  useAuthStore,
-  useTournamentStore,
-  useCurrencyStore,
-  useBackgroundStore,
-} from '@composition/container';
+import { useEffect, useRef } from 'react';
+import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { resetAccountStores, useAuthStore, usePlanStore } from '@composition/container';
+import { isAccountLocked } from '@domain/rules/accountAccess';
 import AuthPage from './application/pages/auth';
 import DashboardPage from './application/pages/dashboard';
 import SetupWizardPage from './application/pages/setup-wizard';
@@ -16,6 +12,8 @@ import PlayersPage from './application/pages/players';
 import SettingsPage from './application/pages/settings';
 import ProfilePage from './application/pages/profile';
 import BackgroundsPage from './application/pages/backgrounds';
+import PlanPage from './application/pages/plan';
+import UnitsPage from './application/pages/units';
 import NotFoundPage from './application/pages/not-found';
 import Screen from '@application/components/template/Screen';
 
@@ -35,23 +33,45 @@ function AuthenticatedApp() {
   const authIsLoaded = useAuthStore((state) => state.isLoaded);
   const session = useAuthStore((state) => state.session);
   const initAuth = useAuthStore((state) => state.init);
+  const signOut = useAuthStore((state) => state.signOut);
+  const isSigningIn = useAuthStore((state) => state.isSigningIn);
 
-  const loadTournaments = useTournamentStore((state) => state.load);
-  const loadCurrencies = useCurrencyStore((state) => state.load);
-  const loadBackgrounds = useBackgroundStore((state) => state.load);
+  const plan = usePlanStore((state) => state.plan);
+  const planIsLoaded = usePlanStore((state) => state.isLoaded);
+  const loadPlan = usePlanStore((state) => state.load);
+
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const wasSignedOut = useRef(false);
 
   useEffect(() => initAuth(), [initAuth]);
 
   useEffect(() => {
-    if (!session) return;
-    loadTournaments();
-    loadCurrencies();
-    loadBackgrounds();
-  }, [session, loadTournaments, loadCurrencies, loadBackgrounds]);
+    if (session) void loadPlan({ force: true });
+  }, [session, pathname, loadPlan]);
+
+  useEffect(() => {
+    if (!session || !planIsLoaded) return;
+    if (isAccountLocked(plan)) void signOut();
+  }, [session, planIsLoaded, plan, signOut]);
+
+  useEffect(() => {
+    if (!authIsLoaded) return;
+    if (!session) {
+      wasSignedOut.current = true;
+      return;
+    }
+    if (wasSignedOut.current) {
+      wasSignedOut.current = false;
+      navigate('/', { replace: true });
+    }
+  }, [authIsLoaded, session, navigate]);
+
+  useEffect(() => {
+    if (authIsLoaded && !session) resetAccountStores();
+  }, [authIsLoaded, session]);
 
   if (!authIsLoaded) {
-    // Through `Screen` so this first paint is already in the chosen theme —
-    // `bg-themed-primary`/`text-themed-primary` were dead classes.
     return (
       <Screen>
         <div className="scroll felt grid place-items-center text-muted">Loading…</div>
@@ -59,8 +79,16 @@ function AuthenticatedApp() {
     );
   }
 
-  if (!session) {
+  if (!session || isSigningIn) {
     return <AuthPage />;
+  }
+
+  if (!planIsLoaded) {
+    return (
+      <Screen>
+        <div className="scroll felt grid place-items-center text-muted">Loading…</div>
+      </Screen>
+    );
   }
 
   return (
@@ -69,6 +97,8 @@ function AuthenticatedApp() {
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/settings/profile" element={<ProfilePage />} />
       <Route path="/settings/backgrounds" element={<BackgroundsPage />} />
+      <Route path="/settings/units" element={<UnitsPage />} />
+      <Route path="/settings/plan" element={<PlanPage />} />
       <Route path="/setup/new" element={<SetupWizardPage />} />
       <Route path="/setup/:id" element={<SetupWizardPage />} />
       <Route path="/tournament/:id/control" element={<ControlPage />} />

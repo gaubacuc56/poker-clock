@@ -93,7 +93,7 @@ export default function LedgerLayout(props: ProjectorData) {
                 className="relative flex flex-col items-end mb-3 "
                 style={{ gap: pu(0.3) }}
               >
-              
+
                 <div
                   className="uppercase"
                   style={{
@@ -185,33 +185,31 @@ export default function LedgerLayout(props: ProjectorData) {
             </div>
           )}
 
-          {m.showClock && (
-            <div
-              key={m.levelKey}
-              className="display tabular-nums whitespace-nowrap"
-              style={{
-                fontSize: pu(
-                  clockFontSize(m.clockStatus, {
-                    running: CLOCK_SIZE,
-                    finished: FINISHED_CLOCK_SIZE,
-                  }),
-                ),
-                fontWeight: 600,
-                lineHeight: 1,
-                letterSpacing: CLOCK_TRACKING,
-                color: m.clockColor,
-                // Tracking is added after the last digit too, which would shove
-                // the centred line off to the left by that much.
-                margin: `${pu(0.6)} -${CLOCK_TRACKING} ${pu(0.6)} 0`,
-                textShadow: m.clockShadow,
-                animation: m.isLowTime
-                  ? 'cdpulse 1s ease-in-out infinite'
-                  : 'lvlin .5s ease',
-              }}
-            >
-              {m.clockText}
-            </div>
-          )}
+          <div
+            key={m.levelKey}
+            className="display tabular-nums whitespace-nowrap"
+            style={{
+              fontSize: pu(
+                clockFontSize(m.clockStatus, {
+                  running: CLOCK_SIZE,
+                  finished: FINISHED_CLOCK_SIZE,
+                }),
+              ),
+              fontWeight: 600,
+              lineHeight: 1,
+              letterSpacing: CLOCK_TRACKING,
+              color: m.clockColor,
+              // Tracking is added after the last digit too, which would shove
+              // the centred line off to the left by that much.
+              margin: `${pu(0.6)} -${CLOCK_TRACKING} ${pu(0.6)} 0`,
+              textShadow: m.clockShadow,
+              animation: m.isLowTime
+                ? 'cdpulse 1s ease-in-out infinite'
+                : 'lvlin .5s ease',
+            }}
+          >
+            {m.clockText}
+          </div>
 
           <LevelDots
             levelIndex={props.levelIndex}

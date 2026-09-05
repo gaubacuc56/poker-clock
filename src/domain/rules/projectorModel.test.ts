@@ -48,21 +48,21 @@ describe('buildProjectorModel — registration', () => {
     expect(model.clockStatus).toBe('registering');
     expect(model.levelLabel).toBe(REGISTERING_LABEL);
     expect(model.clockText).toBe('15:00');
-    expect(model.showClock).toBe(true);
     expect(model.elapsedFraction).toBe(0.75);
     expect(model.isRunning).toBe(true);
   });
 
-  it('shows no countdown at all when no start time was scheduled', () => {
+  it('counts down from a window that has only just been opened', () => {
+    // Registration can only be opened inside the lead window before a start, so
+    // there is always something to count — the bar simply starts empty.
     const model = buildProjectorModel(
-      makeData({ registration: { secondsRemaining: null, elapsedFraction: 0 } }),
+      makeData({ registration: { secondsRemaining: 21_600, elapsedFraction: 0 } }),
     );
 
     expect(model.levelLabel).toBe(REGISTERING_LABEL);
-    expect(model.showClock).toBe(false);
-    expect(model.clockText).toBe('');
-    // Nothing is counting, so nothing draws a progress ring or rail either.
-    expect(model.isRunning).toBe(false);
+    expect(model.clockText).toBe('06:00:00');
+    expect(model.elapsedFraction).toBe(0);
+    expect(model.isRunning).toBe(true);
   });
 
   it('announces the opening level as what is coming, not as blinds in force', () => {
@@ -98,7 +98,6 @@ describe('buildProjectorModel — registration', () => {
 
     expect(model.clockStatus).toBe('finished');
     expect(model.clockText).toBe('FINISHED');
-    expect(model.showClock).toBe(true);
   });
 
   it('leaves an unscheduled tournament exactly as it was', () => {
@@ -107,6 +106,5 @@ describe('buildProjectorModel — registration', () => {
     expect(model.clockStatus).toBe('running');
     expect(model.levelLabel).toBe('Level 1');
     expect(model.clockText).toBe('10:00');
-    expect(model.showClock).toBe(true);
   });
 });

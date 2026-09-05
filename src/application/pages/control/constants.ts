@@ -14,3 +14,10 @@ export const TIME_ADJUSTMENTS: { label: string; seconds: number }[] = [
   { label: '+1m', seconds: 60 },
   { label: '+5m', seconds: 300 },
 ];
+
+/**
+ * How close the start has to be before the screen counts down to the moment
+ * registration may be opened. Beyond a day the figure is noise beside the "Next
+ * session" line, which already says which evening it is.
+ */
+export const REGISTRATION_HINT_SECONDS = 24 * 60 * 60;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCompactNumber } from "./format";
+import { formatCompactAmount, formatCompactNumber } from "./format";
 
 describe("formatCompactNumber", () => {
   it("leaves numbers with fewer than 6 digits grouped", () => {
@@ -44,5 +44,25 @@ describe("formatCompactNumber", () => {
   it("handles negatives", () => {
     expect(formatCompactNumber(-137_500)).toBe("-137K5");
     expect(formatCompactNumber(-5_000)).toBe("-5,000");
+  });
+});
+
+describe("formatCompactAmount", () => {
+  it("keeps a small price exactly as typed, cents and all", () => {
+    expect(formatCompactAmount(2_000_00)).toBe("2,000");
+    expect(formatCompactAmount(12_50)).toBe("12.5");
+    expect(formatCompactAmount(0)).toBe("0");
+  });
+
+  it("compacts a big price the same way a blind is compacted", () => {
+    expect(formatCompactAmount(100_000_00)).toBe("100K");
+    expect(formatCompactAmount(137_500_00)).toBe("137K5");
+    expect(formatCompactAmount(1_000_000_00)).toBe("1M");
+    expect(formatCompactAmount(2_500_000_00)).toBe("2M5");
+  });
+
+  it("switches over at the same threshold as the blinds", () => {
+    expect(formatCompactAmount(99_999_00)).toBe("99,999");
+    expect(formatCompactAmount(100_000_00)).toBe("100K");
   });
 });

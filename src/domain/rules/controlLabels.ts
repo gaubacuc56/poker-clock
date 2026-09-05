@@ -4,7 +4,7 @@ import { LOW_TIME_SECONDS } from '../constants/projector';
 import { getPlayLevelCount, isClockFinished, isFinalPlayLevel } from './blindProgression';
 import { formatLevelLabel } from './blindFormat';
 import { secondsToMinutes } from './duration';
-import { formatAmount, formatClock, formatCompactNumber } from './format';
+import { formatClock, formatCompactAmount, formatCompactNumber } from './format';
 
 /**
  * Which of the four states the level pill is in. The control page maps this to
@@ -103,6 +103,6 @@ export function hasAnte(level: BlindLevel): boolean {
 /** "Buyin/Rebuy : $20/$20" — the entry prices as one line for a title bar. */
 export function formatEntryPriceSummary(lines: EntryPriceLine[]): string {
   const labels = lines.map((line) => line.label).join('/');
-  const amounts = lines.map((line) => formatAmount(line.amountCents)).join('/');
+  const amounts = lines.map((line) => formatCompactAmount(line.amountCents)).join('/');
   return `${labels} : ${amounts}`;
 }

@@ -45,7 +45,6 @@ export default function ProfilePage() {
     <Screen>
       <TopBar>
         <BackLink to="/settings" label="Back to settings" />
-        <h1 className="text-[22px]">Profile</h1>
       </TopBar>
 
       <div className="scroll felt p-4">

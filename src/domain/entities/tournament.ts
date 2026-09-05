@@ -73,17 +73,26 @@ export interface TournamentConfig {
   /** Which arrangement the TV draws. Absent = 'classic', the only layout before this shipped. */
   projectorLayout?: ProjectorLayout;
   /**
-   * The schedule. `once` uses the two instants; `weekly` uses the days and times
-   * of day and works the instants out per occurrence. See
+   * The schedule. `once` uses the instant; `weekly` uses the days and the time
+   * of day and works the instant out per occurrence. See
    * `domain/rules/tournamentSchedule` — nothing outside it reads these directly.
    */
   scheduleRepeat?: ScheduleRepeat;
-  registrationStartAt?: string;
   tournamentStartAt?: string;
   scheduleWeekdays?: number[];
-  registrationTime?: string;
   startTime?: string;
   scheduleDismissedAt?: string;
+  /**
+   * Whether the owner's plan still allows this tournament to start itself off
+   * its schedule.
+   *
+   * Only the projector's join-code lookup fills this in: the account's own
+   * screens work it out from the tournaments and plan they already hold, and the
+   * public projector can see neither. Absent means "nobody said no", which is
+   * also how `planLimits` treats an unknown plan — the database is what actually
+   * refuses.
+   */
+  scheduleStartAllowed?: boolean;
   /**
    * The wall-clock time `lateRegLevel` is expected at, as `HH:mm` — the other
    * half of the projector's "Reg End" announcement. A time of day with no date:

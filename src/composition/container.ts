@@ -10,22 +10,44 @@ import { createTournamentStore } from '../application/stores/tournamentStore';
 import { createAuthStore } from '../application/stores/authStore';
 import { createCurrencyStore } from '../application/stores/currencyStore';
 import { createBackgroundStore } from '../application/stores/backgroundStore';
+import { createPlanStore } from '../application/stores/planStore';
 import { createClockSyncHooks } from '../application/hooks/useClockSync';
 import { SupabaseTournamentRepository } from '../infrastructure/supabase/SupabaseTournamentRepository';
 import { SupabaseAuthGateway } from '../infrastructure/supabase/SupabaseAuthGateway';
 import { SupabaseCurrencyRepository } from '../infrastructure/supabase/SupabaseCurrencyRepository';
 import { SupabaseBackgroundRepository } from '../infrastructure/supabase/SupabaseBackgroundRepository';
+import { SupabasePlanRepository } from '../infrastructure/supabase/SupabasePlanRepository';
 import { SupabaseClockSyncGateway } from '../infrastructure/supabase/SupabaseClockSyncGateway';
 
 const tournamentRepository = new SupabaseTournamentRepository();
 
 export const useTournamentStore = createTournamentStore(tournamentRepository);
-export const useAuthStore = createAuthStore(new SupabaseAuthGateway());
 export const useCurrencyStore = createCurrencyStore(new SupabaseCurrencyRepository());
 export const useBackgroundStore = createBackgroundStore(new SupabaseBackgroundRepository());
+export const usePlanStore = createPlanStore(new SupabasePlanRepository());
+
+export const useAuthStore = createAuthStore(new SupabaseAuthGateway(), async () => {
+  await usePlanStore.getState().load({ force: true });
+  return usePlanStore.getState().plan;
+});
 export const { useClockSyncControl, useClockSyncProjector } = createClockSyncHooks(
   new SupabaseClockSyncGateway(),
 );
+
+/**
+ * Empties every store that holds one account's data.
+ *
+ * The stores are module singletons that fetch once and keep what they got, so
+ * without this the next account to sign in on the same tab would be shown the
+ * last one's tournaments, units and images until something forced a refetch.
+ * This file is the only one allowed to know all of them at once.
+ */
+export function resetAccountStores(): void {
+  useTournamentStore.getState().reset();
+  useCurrencyStore.getState().reset();
+  useBackgroundStore.getState().reset();
+  usePlanStore.getState().reset();
+}
 
 /**
  * Public, unauthenticated lookup for the projector view (/p/:joinCode) —

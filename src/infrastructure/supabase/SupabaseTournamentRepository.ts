@@ -6,8 +6,9 @@ import type { Database } from './database.types';
 
 type TournamentRow = Database['public']['Tables']['tournaments']['Row'];
 
-/** Also used for the public join-code RPC result, which omits owner_id. */
-function rowToTournament(row: Omit<TournamentRow, 'owner_id'>): TournamentConfig {
+function rowToTournament(
+  row: Omit<TournamentRow, 'owner_id'> & { schedule_start_allowed?: boolean | null },
+): TournamentConfig {
   return {
     id: row.id,
     name: row.name,
@@ -40,12 +41,11 @@ function rowToTournament(row: Omit<TournamentRow, 'owner_id'>): TournamentConfig
     projectorBackgroundId: row.projector_background_id ?? undefined,
     projectorLayout: row.projector?.layout ?? undefined,
     scheduleRepeat: row.schedule_repeat ?? undefined,
-    registrationStartAt: row.registration_start_at ?? undefined,
     tournamentStartAt: row.tournament_start_at ?? undefined,
     scheduleWeekdays: row.schedule_weekdays ?? undefined,
-    registrationTime: row.registration_time ?? undefined,
     startTime: row.start_time ?? undefined,
     scheduleDismissedAt: row.schedule_dismissed_at ?? undefined,
+    scheduleStartAllowed: row.schedule_start_allowed ?? undefined,
     regEndTime: row.reg_end_time ?? undefined,
     createdAt: row.created_at,
     status: row.status,
@@ -84,12 +84,11 @@ function tournamentToRow(
     projector_background_id: tournament.projectorBackgroundId ?? null,
     projector: { layout: tournament.projectorLayout },
     schedule_repeat: tournament.scheduleRepeat ?? 'once',
-    registration_start_at: tournament.registrationStartAt ?? null,
     tournament_start_at: tournament.tournamentStartAt ?? null,
     schedule_weekdays: tournament.scheduleWeekdays ?? [],
-    registration_time: tournament.registrationTime ?? null,
     start_time: tournament.startTime ?? null,
     schedule_dismissed_at: tournament.scheduleDismissedAt ?? null,
+    registration_opened_at: null,
     reg_end_time: tournament.regEndTime ?? null,
     created_at: tournament.createdAt,
   };

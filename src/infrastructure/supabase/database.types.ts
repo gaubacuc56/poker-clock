@@ -60,12 +60,11 @@ export interface Database {
           projector_background_id: string | null;
           projector: ProjectorSettings;
           schedule_repeat: ScheduleRepeat;
-          registration_start_at: string | null;
           tournament_start_at: string | null;
           schedule_weekdays: number[];
-          registration_time: string | null;
           start_time: string | null;
           schedule_dismissed_at: string | null;
+          registration_opened_at: string | null;
           reg_end_time: string | null;
           created_at: string;
           updated_at: string;
@@ -106,12 +105,43 @@ export interface Database {
       };
       currencies: {
         Row: {
+          id: string;
           code: string;
           label: string;
           sort_order: number;
+          /** Null on the two standard units, which every account sees. */
+          owner_id: string | null;
         };
-        Insert: Database['public']['Tables']['currencies']['Row'];
-        Update: Partial<Database['public']['Tables']['currencies']['Row']>;
+        Insert: Omit<Database['public']['Tables']['currencies']['Row'], 'id' | 'sort_order'> & {
+          id?: string;
+          sort_order?: number;
+        };
+        Update: Partial<Database['public']['Tables']['currencies']['Insert']>;
+        Relationships: [];
+      };
+      plans: {
+        Row: {
+          plan_code: string;
+          max_tour: number | null;
+          max_running_tour: number | null;
+          max_background: number | null;
+          created_at: string;
+        };
+        Insert: Database['public']['Tables']['plans']['Row'];
+        Update: Partial<Database['public']['Tables']['plans']['Row']>;
+        Relationships: [];
+      };
+      profiles: {
+        Row: {
+          id: string;
+          plan_code: string | null;
+          plan_start: string | null;
+          plan_end: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Database['public']['Tables']['profiles']['Row'];
+        Update: Partial<Database['public']['Tables']['profiles']['Row']>;
         Relationships: [];
       };
     };
@@ -119,7 +149,26 @@ export interface Database {
     Functions: {
       get_tournament_by_join_code: {
         Args: { p_join_code: string };
-        Returns: Array<Omit<Database['public']['Tables']['tournaments']['Row'], 'owner_id'>>;
+        Returns: Array<
+          Omit<Database['public']['Tables']['tournaments']['Row'], 'owner_id'> & {
+            /** 0014 — whether the owner's plan still allows this one to start
+             *  itself off its schedule. Absent from the table; computed here. */
+            schedule_start_allowed: boolean | null;
+          }
+        >;
+      };
+      /** The signed-in account's plan and the allowances actually in force. */
+      get_my_plan: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          plan_code: string | null;
+          plan_start: string | null;
+          plan_end: string | null;
+          is_active: boolean;
+          max_tour: number | null;
+          max_running_tour: number | null;
+          max_background: number | null;
+        }>;
       };
     };
   };

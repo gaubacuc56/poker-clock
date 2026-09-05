@@ -1,9 +1,13 @@
 import type { Currency } from '@domain/entities';
 import type { TournamentDraft } from '@domain/rules/tournamentDraft';
 import {
+  findScheduleClashes,
+  formatScheduleMoment,
+  REGISTRATION_LEAD_HOURS,
   scheduleLocalToIso,
   validateSchedule,
   WEEKDAY_LABELS,
+  type NamedSchedule,
   type ScheduleRepeat,
 } from '@domain/rules/tournamentSchedule';
 import { WarningIcon } from '@application/components/ui/icons';
@@ -15,39 +19,32 @@ import Switch from './Switch';
 interface BasicsStepProps {
   draft: TournamentDraft;
   currencies: Currency[];
-  /** The clock has already been started — the schedule that led up to it is
-   *  history and can no longer be rewritten. */
+  otherTournaments?: readonly NamedSchedule[];
   scheduleLocked?: boolean;
   onChange: <K extends keyof TournamentDraft>(key: K, value: TournamentDraft[K]) => void;
 }
 
-/** Everything about the tournament that isn't a structure: name, prices, sizes. */
 export default function BasicsStep({
   draft,
   currencies,
+  otherTournaments = [],
   scheduleLocked = false,
   onChange,
 }: BasicsStepProps) {
   const rebuyPriceValid = !draft.allowRebuy || Number(draft.rebuyPrice) > 0;
   const addOnPriceValid = !draft.allowAddOn || Number(draft.addOnPrice) > 0;
-  const scheduleError = validateSchedule(
-    {
-      scheduleRepeat: draft.scheduleRepeat,
-      registrationStartAt: scheduleLocalToIso(draft.registrationStart),
-      tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
-      scheduleWeekdays: draft.scheduleWeekdays,
-      registrationTime: draft.registrationTime,
-      startTime: draft.startTime,
-    },
-    scheduleLocked ? undefined : Date.now(),
-  );
-
+  const schedule = {
+    scheduleRepeat: draft.scheduleRepeat,
+    tournamentStartAt: scheduleLocalToIso(draft.tournamentStart),
+    scheduleWeekdays: draft.scheduleWeekdays,
+    startTime: draft.startTime,
+  };
+  const scheduleError = validateSchedule(schedule, scheduleLocked ? undefined : Date.now());
+  const clashes = findScheduleClashes(schedule, otherTournaments, Date.now());
   const regEndFilled = Boolean(draft.lateRegLevel || draft.regEndTime);
 
   return (
     <>
-      {/* One field per row at every width — the basics step reads
-          top-to-bottom rather than wrapping into uneven columns. */}
       <div className="grid grid-cols-1 gap-3">
         <Field label="Tournament name">
           <input
@@ -64,8 +61,8 @@ export default function BasicsStep({
             onChange={(e) => onChange('currency', e.target.value)}
           >
             {currencies.map((currency) => (
-              <option key={currency.code} value={currency.code}>
-                {currency.label}
+              <option key={currency.id} value={currency.code}>
+                {currency.code}
               </option>
             ))}
           </select>
@@ -102,7 +99,7 @@ export default function BasicsStep({
             onChange={(e) => onChange('maxPlayersPerTable', e.target.value)}
           />
         </Field>
-        <Field label={`Guaranteed prize pool (${draft.currency}, optional)`}>
+        <Field label={`Guaranteed prize pool`}>
           <input
             type="number"
             className="input tabular-nums"
@@ -127,13 +124,6 @@ export default function BasicsStep({
 
         {draft.scheduleRepeat === 'once' ? (
           <>
-            <DateTimeField
-              label="Registration start"
-              value={draft.registrationStart}
-              disabled={scheduleLocked}
-              invalid={Boolean(scheduleError)}
-              onChange={(value) => onChange('registrationStart', value)}
-            />
             <DateTimeField
               label="Tournament start"
               value={draft.tournamentStart}
@@ -179,25 +169,14 @@ export default function BasicsStep({
                 })}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="min-w-0">
-                <span className="mb-1 block text-[15px] text-faint">Registration</span>
-                <TimeField
-                  value={draft.registrationTime}
-                  ariaLabel="Weekly registration time"
-                  invalid={Boolean(scheduleError)}
-                  onChange={(value) => onChange('registrationTime', value)}
-                />
-              </div>
-              <div className="min-w-0">
-                <span className="mb-1 block text-[15px] text-faint">Start</span>
-                <TimeField
-                  value={draft.startTime}
-                  ariaLabel="Weekly start time"
-                  invalid={Boolean(scheduleError)}
-                  onChange={(value) => onChange('startTime', value)}
-                />
-              </div>
+            <div className="max-w-[12rem] min-w-0">
+              <span className="mb-1 block text-[15px] text-faint">Start</span>
+              <TimeField
+                value={draft.startTime}
+                ariaLabel="Weekly start time"
+                invalid={Boolean(scheduleError)}
+                onChange={(value) => onChange('startTime', value)}
+              />
             </div>
           </>
         )}
@@ -208,19 +187,37 @@ export default function BasicsStep({
             {scheduleError}
           </p>
         )}
+
+        <p className="text-[16px] text-muted">
+          The registration countdown automatically run {REGISTRATION_LEAD_HOURS} hours before
+          the tournament start.
+        </p>
+
+        {clashes.length > 0 && (
+          <div className="sunken flex flex-col px-3.5 pt-[11px] pb-3">
+            <span className="kicker text-[15px]">Scheduled around this time</span>
+            <ul className="m-0 mt-2 flex list-none flex-col gap-1.5 p-0">
+              {clashes.map((clash) => (
+                <li
+                  key={clash.id}
+                  className="flex items-center justify-between gap-3 border-t border-hair pt-1.5 first:border-0 first:pt-0"
+                >
+                  <span className="min-w-0 truncate text-[17px] text-fg">{clash.name}</span>
+                  <span className="tag flex-none bg-accent text-[15px] font-semibold whitespace-nowrap text-accent-on tabular-nums">
+                    {formatScheduleMoment(clash.startsAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
-      {/* One heading over both halves: the level and the time are two readings
-          of the same moment, not two settings. The level is the same number the
-          app closes late registration on, so the sign on the TV and the rule it
-          enforces cannot disagree. */}
+    
       <div className="card mt-4 gap-2.5">
         <div>
           <div className="flex items-baseline justify-between gap-3">
             <span className="field-label">Reg end</span>
-            {/* Both halves are optional, and a time input has no way to be
-                emptied from its own picker — so clearing them is offered here,
-                and only while there is something to clear. */}
             {regEndFilled && (
               <button
                 type="button"
